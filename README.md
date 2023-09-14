@@ -1,4 +1,4 @@
-# Mario-Reinforcement-Learning
+[Mario.webm](https://github.com/sacchinbhg/Mario-Reinforcement-Learning/assets/61612220/41dc549b-9dda-4bbb-8615-1b6f2fa9ff7d)# Mario-Reinforcement-Learning
 ## Configuring GYM
 In my project, I taught a computer to play the Super Mario Bros game. To help it understand the game, I used a special way to look at what's happening on the screen.
 
@@ -29,3 +29,8 @@ Introducing randomness in the starting location within a level, although the gym
 Exploring transfer learning, where we use a pre-trained agent and train it on new levels for a shorter duration. With exposure to more diverse levels, the agent may develop a broader understanding of the game rather than memorizing specific level layouts. However, there's a concern about potential forgetting as it adapts to new levels while retaining prior knowledge.
 
 Training the agent on a subset of stages. In each training episode, the agent would tackle a different stage randomly selected from a subset of similar levels. This approach, feasible after release 7.4.0, seems promising and straightforward to implement. However, there's a question of whether the policy can effectively converge, but it's worth experimenting with nonetheless.
+
+
+[Mario.webm](https://github.com/sacchinbhg/Mario-Reinforcement-Learning/assets/61612220/477348d4-aadd-49ef-9714-a56d160c4e1f)
+
+
