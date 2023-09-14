@@ -1,4 +1,4 @@
-[Mario.webm](https://github.com/sacchinbhg/Mario-Reinforcement-Learning/assets/61612220/41dc549b-9dda-4bbb-8615-1b6f2fa9ff7d)# Mario-Reinforcement-Learning
+# Mario-Reinforcement-Learning
 ## Configuring GYM
 In my project, I taught a computer to play the Super Mario Bros game. To help it understand the game, I used a special way to look at what's happening on the screen.
 
