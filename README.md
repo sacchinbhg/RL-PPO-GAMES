@@ -18,6 +18,8 @@ I also used a scoring system to teach the computer. If Mario went a long way in 
 ## Training
 I employed the PPO agent from SB3, using the MlpPolicy, which consisted of two layers of Dense(64). I used the default settings for most parameters, along with a linear annealing learning rate scheduler that gradually decreased the learning rate to zero by the end of each training session. This addition notably enhanced the training process's reliability. Each model underwent training for 10 million steps, and the entire training session typically lasted approximately 7.5 hours. I am using a GeForce GTX 1080 Ti
 
+Use the training ipynb file to train
+
 ## Result
 
 Regrettably, despite the agent's success in completing level 1-1, it faced challenges in other stages, indicating that it may not have grasped every aspect of the game's mechanics as intended. While it learned to jump when encountering enemies or detecting bottomless pits, the stark contrast between its flawless performance in 1-1 and repeated failures in other levels suggests that it relied heavily on memorizing the layout of each level to optimize its path from start to finish. This reliance on level-specific learning may not generalize well to new levels.
@@ -29,6 +31,8 @@ Introducing randomness in the starting location within a level, although the gym
 Exploring transfer learning, where we use a pre-trained agent and train it on new levels for a shorter duration. With exposure to more diverse levels, the agent may develop a broader understanding of the game rather than memorizing specific level layouts. However, there's a concern about potential forgetting as it adapts to new levels while retaining prior knowledge.
 
 Training the agent on a subset of stages. In each training episode, the agent would tackle a different stage randomly selected from a subset of similar levels. This approach, feasible after release 7.4.0, seems promising and straightforward to implement. However, there's a question of whether the policy can effectively converge, but it's worth experimenting with nonetheless.
+
+Use the test ipynb file to see the result of the checkpoint you created
 
 
 [Mario.webm](https://github.com/sacchinbhg/Mario-Reinforcement-Learning/assets/61612220/477348d4-aadd-49ef-9714-a56d160c4e1f)
