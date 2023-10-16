@@ -34,8 +34,7 @@ Training the agent on a subset of stages. In each training episode, the agent wo
 
 Use the test ipynb file to see the result of the checkpoint you created
 
-# 2. Pokemon Reinforcement Learning
-
 [Mario.webm](https://github.com/sacchinbhg/Mario-Reinforcement-Learning/assets/61612220/477348d4-aadd-49ef-9714-a56d160c4e1f)
 
 
+# 2. Pokemon Reinforcement Learning
