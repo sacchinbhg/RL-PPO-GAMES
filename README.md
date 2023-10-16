@@ -1,4 +1,4 @@
-# Mario-Reinforcement-Learning
+# 1. Mario-Reinforcement-Learning
 ## Configuring GYM
 In my project, I taught a computer to play the Super Mario Bros game. To help it understand the game, I used a special way to look at what's happening on the screen.
 
@@ -34,6 +34,7 @@ Training the agent on a subset of stages. In each training episode, the agent wo
 
 Use the test ipynb file to see the result of the checkpoint you created
 
+# 2. Pokemon Reinforcement Learning
 
 [Mario.webm](https://github.com/sacchinbhg/Mario-Reinforcement-Learning/assets/61612220/477348d4-aadd-49ef-9714-a56d160c4e1f)
 
