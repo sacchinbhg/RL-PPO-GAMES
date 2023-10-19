@@ -8,4 +8,4 @@ More details at the readme file in Mario-Reinforcement-Learning folder
 # 2. Pokemon Reinforcement Learning
 It is able to play pokemon quiet effectively and goes on to defeat brock on its own. Due to the rl-training nature it gets stuck in 1 area of the game and is not able to move forward. Next time a better exploration reward should be give.
 
-https://github.com/sacchinbhg/RL-PPO-GAMES/assets/61612220/860c27d0-1f56-4a1d-9b9b-9b4ccd70ba72
+https://github.com/sacchinbhg/RL-PPO-GAMES/assets/61612220/53293a6a-0781-4176-9d4e-9fc417f78834
