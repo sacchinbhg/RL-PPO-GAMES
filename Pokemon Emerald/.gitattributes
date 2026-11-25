@@ -1,0 +1,4 @@
+*.py text eol=lf
+*.mk text eol=lf
+*.c text eol=lf
+*.patch text eol=lf -whitespace

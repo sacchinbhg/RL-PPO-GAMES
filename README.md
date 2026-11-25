@@ -9,3 +9,8 @@ More details at the readme file in Mario-Reinforcement-Learning folder
 It is able to play pokemon quiet effectively and goes on to defeat brock on its own. Due to the rl-training nature it gets stuck in 1 area of the game and is not able to move forward. Next time a better exploration reward should be give.
 
 https://github.com/sacchinbhg/RL-PPO-GAMES/assets/61612220/53293a6a-0781-4176-9d4e-9fc417f78834
+
+
+# 3. Pokémon Emerald
+
+[Pokémon Emerald training code](Pokemon%20Emerald/README.md) includes the PPO and world-model learners, mGBA and native game backends, and fresh-game evaluation.

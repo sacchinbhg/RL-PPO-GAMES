@@ -1,0 +1,6 @@
+{
+  "python": "python",
+  "rom": "C:/emerald/own-copy/pokeemerald.gba",
+  "core": "C:/emerald/cores/mgba_libretro.dll",
+  "native_core": "C:/emerald/upstream-emerald/build/native/emerald_rl.dll"
+}

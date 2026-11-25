@@ -1,0 +1,14 @@
+__pycache__/
+*.pyc
+.venv/
+local.json
+runs/
+upstream-emerald/
+*.pt
+*.gba
+*.sav
+*.wasm
+*.so
+*.dll
+*.exe
+*.npz

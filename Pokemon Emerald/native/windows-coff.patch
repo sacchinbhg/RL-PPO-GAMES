@@ -1,0 +1,101 @@
+diff --git a/tools/native/build.mk b/tools/native/build.mk
+index c08e96b..6e63974 100644
+--- a/tools/native/build.mk
++++ b/tools/native/build.mk
+@@ -2,7 +2,7 @@ comma := ,
+ NATIVE_AST_CC ?= clang
+ NATIVE_AST_TARGET := $(shell $(NATIVE_CC) $(NATIVE_CFLAGS) -dumpmachine)
+ NATIVE_MACROS := $(shell $(NATIVE_CC) $(NATIVE_CFLAGS) -dM -E -x c /dev/null)
+-NATIVE_FORMAT := $(if $(findstring __APPLE__,$(NATIVE_MACROS)),macho,elf)
++NATIVE_FORMAT := $(if $(findstring __APPLE__,$(NATIVE_MACROS)),macho,$(if $(findstring _WIN32,$(NATIVE_MACROS)),coff,elf))
+ NATIVE_POINTER_SIZE ?= $(shell $(NATIVE_CC) $(NATIVE_CFLAGS) -dM -E -x c /dev/null | sed -n 's/^\#define __SIZEOF_POINTER__ //p')
+ NATIVE_DATA_NAMES := $(basename $(notdir $(WASM_DATA_ASM_SRCS))) contest_ai_scripts mystery_event_script_cmd_table multiboot_pokemon_colosseum multiboot_ereader multiboot_berry_glitch_fix
+ NATIVE_DATA_OBJS := $(addprefix $(NATIVE_BUILD_DIR)/data/,$(addsuffix .o,$(NATIVE_DATA_NAMES)))
+@@ -17,6 +17,9 @@ $(NATIVE_OBJ_DIR)/native_%.o: tools/native/%.c
+ 	$(NATIVE_CC) $(NATIVE_CFLAGS) $(NATIVE_GAME_FLAGS) -x c -c $@.c -o $@
+ 
+ NATIVE_GAME_FLAGS := -DMODERN=1 -DWASM=1 -DNATIVE=1 -DNDEBUG -fno-strict-aliasing -fwrapv -Wno-everything
++ifeq ($(NATIVE_FORMAT),coff)
++NATIVE_GAME_FLAGS += -mno-ms-bitfields
++endif
+ NATIVE_INCLUDES := -I $(WASM_BUILD_DIR) -I include/wasm -I include -iquote include
+ 
+ $(NATIVE_C_OBJS): | generated wasm-assets
+diff --git a/tools/native/generate_data.py b/tools/native/generate_data.py
+index 613c831..354b87b 100644
+--- a/tools/native/generate_data.py
++++ b/tools/native/generate_data.py
+@@ -25,7 +25,7 @@ def main():
+     parser.add_argument('source', type=Path)
+     parser.add_argument('output', type=Path)
+     parser.add_argument('--pointer-size', type=int, choices=(4, 8), required=True)
+-    parser.add_argument('--format', choices=('macho', 'elf'), required=True)
++    parser.add_argument('--format', choices=('macho', 'elf', 'coff'), required=True)
+     args = parser.parse_args()
+     source = asm.preprocess(args.source)
+     source = re.sub(r'(?m)^\s*enum_start(?:[ \t]+([^\n@]+))?[ \t]*$',
+diff --git a/tools/native/native_engine.c b/tools/native/native_engine.c
+index 6dcfc41..3df5fe4 100644
+--- a/tools/native/native_engine.c
++++ b/tools/native/native_engine.c
+@@ -4,6 +4,9 @@
+ #include <string.h>
+ #include <sys/stat.h>
+ #include <stdint.h>
++#ifdef _WIN32
++#include <direct.h>
++#endif
+ 
+ #define FLASH_BASE 0x0e000000u
+ #define MEMORY_SIZE 0x10000000u
+@@ -37,6 +40,14 @@ extern uint8_t gameBssStart[] __asm__("section$start$__DATA$native_game");
+ extern uint8_t gameBssEnd[] __asm__("section$end$__DATA$native_game");
+ extern uint8_t gameDataStart[] __asm__("section$start$__DATA$native_game_data");
+ extern uint8_t gameDataEnd[] __asm__("section$end$__DATA$native_game_data");
++#elif defined(_WIN32)
++// PE/COFF sorts the dollar suffixes within each section. Keep BSS markers
++// uninitialized so the linker places them alongside the game's zeroed storage.
++__asm__(".section .bss$NBA,\"bw\"\n.globl gameBssStart\ngameBssStart: .space 1\n"
++        ".section .bss$NBZ,\"bw\"\n.globl gameBssEnd\ngameBssEnd: .space 1\n"
++        ".section .data$NDA,\"dw\"\n.globl gameDataStart\ngameDataStart: .byte 0\n"
++        ".section .data$NDZ,\"dw\"\n.globl gameDataEnd\ngameDataEnd: .byte 0\n.text");
++extern uint8_t gameBssStart[], gameBssEnd[], gameDataStart[], gameDataEnd[];
+ #else
+ extern uint8_t gameBssStart[] __asm__("__start_native_game");
+ extern uint8_t gameBssEnd[] __asm__("__stop_native_game");
+@@ -110,8 +121,13 @@ static uint64_t hash_bytes64(const uint8_t *bytes, size_t size)
+ 
+ static void ensure_save_dir(void)
+ {
++#ifdef _WIN32
++    _mkdir("build");
++    _mkdir("build/native");
++#else
+     mkdir("build", 0777);
+     mkdir("build/native", 0777);
++#endif
+ }
+ 
+ 
+diff --git a/tools/native/prepare_source.py b/tools/native/prepare_source.py
+index 5c53b46..6aa0bac 100644
+--- a/tools/native/prepare_source.py
++++ b/tools/native/prepare_source.py
+@@ -12,10 +12,14 @@ text = Path(source).read_text()
+ text = '\n'.join(line for line in text.splitlines() if not line.startswith('#')) + '\n'
+ section = '__DATA,native_game' if target_format == 'macho' else 'native_game'
+ text = re.sub(r'__attribute__\(\(section\("(?:iwram_data|ewram_data|common_data|\.bss\.code|\.text\.consts)"\)\)\)', '', text)
+-text = f'#pragma clang section bss="{section}" data="{section}_data"\n' + '#pragma pack(4)\n' + text
++bss, data = ('.bss$NBM', '.data$NDM') if target_format == 'coff' else (section, section + '_data')
++text = f'#pragma clang section bss="{bss}" data="{data}"\n' + '#pragma pack(4)\n' + text
+ def parse(text):
+-    Path(source).write_text(text)
+-    return subprocess.run([*compiler, '-x', 'c', '-fsyntax-only', '-Wno-everything',
++    # Clang reports byte offsets. Windows CRLF translation would shift every AST edit.
++    with Path(source).open('w', encoding='utf-8', newline='\n') as stream:
++        stream.write(text)
++    abi_flags = ['-mno-ms-bitfields'] if target_format == 'coff' else []
++    return subprocess.run([*compiler, *abi_flags, '-x', 'c', '-fsyntax-only', '-Wno-everything',
+                            '-Xclang', '-ast-dump=json', source], capture_output=True)
+ 
+ 
