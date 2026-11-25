@@ -1,0 +1,9 @@
+{
+  "source_commit": "fd83f5b6e609b61b0b10777e32c74343e1a81b41",
+  "oracle": "Upstream WebAssembly port replaying tools/wasm_replays/mudkip_starter.txt with web/app.js BIOS handlers. SHA-256 over row-major RGB, 240x160, excluding alpha.",
+  "sha256": {
+    "after-clock": "707ccb41431cb0210447b8cf40b1df533de21500b24fe14bac9cf6f70036bd02",
+    "outside-rival-house": "f3743f519a957a72e832b036fbfb76826796f325078e590d9ea80513c57e4c34",
+    "mudkip-battle": "91fed56d6f7dbeba927bf7eb50605f72c5f47d2662af6447ea1edd259a67b092"
+  }
+}

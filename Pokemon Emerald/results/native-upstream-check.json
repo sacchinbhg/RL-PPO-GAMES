@@ -1,0 +1,20 @@
+{
+  "score": 4677420.80,
+  "info": {
+    "warmup_frames": 10007,
+    "measure_frames": 1000003,
+    "scenario_fps": {"overworld": 1759306.48, "menu": 9325111.10, "battle": 2947844.82},
+    "scenario_render_us": {"overworld": 86.03, "menu": 163.20, "battle": 167.43},
+    "passes": [
+      {"valid": true, "scenarios": {"overworld": {"fps": 1814410.00, "seconds": 0.5511}, "menu": {"fps": 8153226.38, "seconds": 0.1227}, "battle": {"fps": 2795357.26, "seconds": 0.3577}}},
+      {"valid": true, "scenarios": {"overworld": {"fps": 1707451.29, "seconds": 0.5857}, "menu": {"fps": 10890419.85, "seconds": 0.0918}, "battle": {"fps": 3117928.75, "seconds": 0.3207}}}
+    ],
+    "deterministic": true,
+    "progressing": true,
+    "sprite_sort_check": true,
+    "golden_present": true,
+    "hashes_ok": true,
+    "mismatches": [],
+    "checkpoints": {"overworld-start": "ae3ef35597420a01", "overworld-end": "4e88df3b8acdd106", "menu-start": "4260789f1210ad1f", "menu-end": "368ddac2cd85ee5c", "battle-start": "c52762b7d0822c58", "battle-end": "bd21efe36d853d96"}
+  }
+}

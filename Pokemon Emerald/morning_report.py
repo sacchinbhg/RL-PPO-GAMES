@@ -26,6 +26,11 @@ def clock(iso):
 
 def summary(root, native, verify, pilot, transfer):
     lines = ["# Emerald overnight report", "", "Updated " + clock(datetime.now(timezone.utc).isoformat()) + ".", ""]
+    pipeline = read(pilot.parent / "pipeline.json")
+    if pipeline:
+        lines += [f"Native pipeline: **{pipeline['phase']}** as of {clock(pipeline['updated'])}.", ""]
+        if pipeline.get("error"):
+            lines += [pipeline["error"], ""]
     statuses = []
     for name, folder in (("Original mGBA run", root), ("Native Emerald run", native)):
         s = read(folder / "status.json")
@@ -47,9 +52,12 @@ def summary(root, native, verify, pilot, transfer):
                   f"{row.get('dynamics_updates', 0):,} dynamics updates, including inherited work.", ""]
         if s.get("error"):
             lines += [f"Supervisor error: {s['error']}", ""]
+        if s.get("phase") == "Training" and s.get("expected_finish_local"):
+            lines += [f"Scheduled training finish: {clock(s['expected_finish_local'])}. Fresh-game evaluation follows.", ""]
         lines += ["Frozen policies played from a fresh boot. Counts are independent games that reached each event at least once.", "",
                   "| Checkpoint | Decisions | Games | Clock | Met rival | Route 101 | Actual party |",
                   "|---|---:|---:|---:|---:|---:|---:|"]
+        first_seen = {}
         for entry in s.get("evaluations", []):
             report = read(folder / entry["report"])
             games = report.get("trials", [])
@@ -59,6 +67,11 @@ def summary(root, native, verify, pilot, transfer):
             if all("verified_event_decision" in game for game in games):
                 counts = [str(sum(metric in game["verified_event_decision"] for game in games))
                           for metric in ("clock", "met_rival", "route101", "party")]
+                for game in games:
+                    for event in ("met_rival", "route101", "party"):
+                        at = game["verified_event_decision"].get(event)
+                        if at is not None and event not in first_seen:
+                            first_seen[event] = (entry["name"], game["trial"], at)
             else:
                 counts[0] = str(sum(game["clock"] for game in games))
                 audited = read((folder / entry["report"]).parent / "rival-audit/report.json")
@@ -67,20 +80,50 @@ def summary(root, native, verify, pilot, transfer):
                                   for metric in ("met_rival", "route101", "party")]
             lines.append(f"| {entry['name']} | {entry['steps']:,} | {len(games)} | " + " | ".join(counts) + " |")
         lines += ["", "A dash means that checkpoint used an older evaluator and the event lacks a verified count.", ""]
+        if first_seen:
+            lines += ["Verified moments from the updated evaluator:", ""]
+            for event, (checkpoint, trial, decision) in first_seen.items():
+                label = {"met_rival":"met the rival", "route101":"entered Route 101", "party":"had a Pokémon in the party"}[event]
+                lines.append(f"- {checkpoint}, fresh game {trial + 1}: {label} at decision {decision:,}.")
+            lines.append("")
     lines += ["## Backend and transfer checks", ""]
     b = read(verify / "benchmark.json")
     if b:
+        speeds = {}
         for label in ("native", "mgba"):
             samples = [s for s in b["samples"] if s["backend"] == label]
             if samples:
-                lines.append(f"- {label}: {statistics.median(s['decisions_per_second'] for s in samples):,.1f} decisions/s "
+                speeds[label] = statistics.median(s['decisions_per_second'] for s in samples)
+                lines.append(f"- {label}: {speeds[label]:,.1f} decisions/s "
                              f"across {len(samples)} timed sample(s), eight workers, with RGB and state observations. "
                              f"Median route restore {statistics.median(s['restore_seconds'] for s in samples):.4f} s.")
         lines += ["", "The upstream scripted starter sequence checks compatibility. Its inputs are excluded from policy training. "
                   "Both backends share the laptop with the original training run during these measurements.", ""]
+        if len(speeds) == 2:
+            lines += [f"The native worker benchmark delivered {speeds['native']/speeds['mgba']:.1f}× the real-game decisions per second. "
+                      "It times game stepping, observation extraction, and worker communication; model updates are timed in the trainer.", ""]
+        g = read(pilot.parent / "upstream-benchmark.json").get("info", {})
+        if g.get("hashes_ok") and g.get("deterministic"):
+            lines += ["All six upstream framebuffer hashes matched over two deterministic benchmark passes. "
+                      "The native policy observations also matched the upstream browser engine at the clock, rival’s house, and Mudkip battle.", ""]
     else:
         lines += ["Backend verification results are pending.", ""]
+    p = read(pilot / "training.json")
+    if p.get("finished"):
+        lines += [f"The native pilot trained for {p['total_training_steps']:,} real decisions at "
+                  f"{p['active_steps_per_second']:.1f} decisions/s with the complete learner. It ran {p['dynamics_updates']:,} "
+                  f"world-model updates, generated {p['imagined_steps']:,} imagined transitions, and restored "
+                  f"{p.get('archive_resets', 0)} archived routes. It inherited the original 65,536-decision policy weights "
+                  "and began with a fresh native archive and dynamics model.", ""]
     result = read(transfer / "evaluation.json")
+    pilot_transfer = read(pilot.parent / "pilot-transfer/evaluation.json")
+    if pilot_transfer:
+        games = pilot_transfer["trials"]
+        counts = [sum(k in g["verified_event_decision"] for g in games)
+                  for k in ("clock", "met_rival", "route101", "party")]
+        lines += [f"The 16,384-decision native pilot also played {len(games)} independent games in the original mGBA ROM. "
+                  f"Clock {counts[0]}/{len(games)}, rival {counts[1]}/{len(games)}, Route 101 {counts[2]}/{len(games)}, "
+                  f"occupied party {counts[3]}/{len(games)}.", ""]
     if result:
         games = result["trials"]
         counts = [sum(k in g["verified_event_decision"] for g in games)
@@ -88,6 +131,8 @@ def summary(root, native, verify, pilot, transfer):
         lines += [f"The frozen native-trained policy tested in the original ROM reached the clock in {counts[0]}/{len(games)}, "
                   f"the rival in {counts[1]}/{len(games)}, Route 101 in {counts[2]}/{len(games)}, "
                   f"and an occupied party in {counts[3]}/{len(games)} fresh games.", ""]
+    elif statuses[1] and statuses[1].get("phase", "").startswith("Completed"):
+        lines += ["The final native policy's transfer evaluation on the original ROM is pending.", ""]
     lines += ["## What to do next", "",
               "Compare fresh-game milestones at matched real-decision budgets. Use the faster verified backend for algorithm tests, "
               "and evaluate its best frozen policy from boot on the original mGBA ROM. If reaching the rival stays rare across seeds, "
@@ -114,6 +159,8 @@ if __name__ == "__main__":
             except OSError as exc:
                 print(f"Desktop mirror: {exc}", flush=True)
         finished = all(s.get("phase", "").startswith(("Completed", "Interrupted")) for s in states)
-        if not args.follow or (finished and (args.transfer / "evaluation.json").is_file()):
+        pipeline = read(args.pilot.parent / "pipeline.json")
+        if not args.follow or (finished and (args.transfer / "evaluation.json").is_file()) or (
+                pipeline.get("phase") == "Interrupted" and states[0].get("phase", "").startswith(("Completed", "Interrupted"))):
             break
         time.sleep(60)

@@ -1,0 +1,54 @@
+{
+  "scripted_reference": {
+    "frame": 27228,
+    "map": "Route101",
+    "phase": 6,
+    "clock": 1,
+    "met_rival": 1,
+    "route101_state": 2,
+    "party": 1,
+    "rgb_sha256": "91fed56d6f7dbeba927bf7eb50605f72c5f47d2662af6447ea1edd259a67b092",
+    "matches_reference": true
+  },
+  "native_core_sha256": "997701e27f90cc18daec40e12f082989d56772b5cc5f40417881e013cff79351",
+  "samples": [
+    {
+      "backend": "native",
+      "workers": 8,
+      "real_decisions": 4096,
+      "step_seconds": 0.32995649985969067,
+      "decisions_per_second": 12413.757576352538,
+      "restore_seconds": 0.2553002000786364,
+      "cross_worker_equal_after_eight_steps": true
+    },
+    {
+      "backend": "mgba",
+      "workers": 8,
+      "real_decisions": 4096,
+      "step_seconds": 11.070408900035545,
+      "decisions_per_second": 369.9953666559551,
+      "restore_seconds": 0.002139999996870756,
+      "cross_worker_equal_after_eight_steps": true
+    },
+    {
+      "backend": "mgba",
+      "workers": 8,
+      "real_decisions": 4096,
+      "step_seconds": 11.153067199978977,
+      "decisions_per_second": 367.25323416035013,
+      "restore_seconds": 0.0022325001191347837,
+      "cross_worker_equal_after_eight_steps": true
+    },
+    {
+      "backend": "native",
+      "workers": 8,
+      "real_decisions": 4096,
+      "step_seconds": 0.3637234999332577,
+      "decisions_per_second": 11261.301512691936,
+      "restore_seconds": 0.1795303001999855,
+      "cross_worker_equal_after_eight_steps": true
+    }
+  ],
+  "unit": "one action advances 24 frames and returns RGB and state",
+  "workload": "eight workers; fixed inputs; existing overnight training running concurrently"
+}

@@ -1,0 +1,38 @@
+diff --git a/src/save.c b/src/save.c
+index 1b6cc31..8c2e0c3 100644
+--- a/src/save.c
++++ b/src/save.c
+@@ -509,6 +509,11 @@ static u8 CopySaveSlotData(u16 sectorId, struct SaveSectorLocation *locations)
+         ReadFlashSector(i + slotOffset, gReadWriteSector);
+ 
+         id = gReadWriteSector->id;
++#if NATIVE
++        // Unwritten flash reads as 0xff. Only valid sector IDs index locations.
++        if (id >= NUM_SECTORS_PER_SLOT)
++            continue;
++#endif
+         if (id == 0)
+             gLastWrittenSector = i;
+ 
+@@ -544,6 +549,10 @@ static u8 GetSaveValidStatus(const struct SaveSectorLocation *locations)
+         if (gReadWriteSector->signature == SECTOR_SIGNATURE)
+         {
+             signatureValid = TRUE;
++#if NATIVE
++            if (gReadWriteSector->id >= NUM_SECTORS_PER_SLOT)
++                continue;
++#endif
+             checksum = CalculateChecksum(gReadWriteSector->data, locations[gReadWriteSector->id].size);
+             if (gReadWriteSector->checksum == checksum)
+             {
+@@ -576,6 +585,10 @@ static u8 GetSaveValidStatus(const struct SaveSectorLocation *locations)
+         if (gReadWriteSector->signature == SECTOR_SIGNATURE)
+         {
+             signatureValid = TRUE;
++#if NATIVE
++            if (gReadWriteSector->id >= NUM_SECTORS_PER_SLOT)
++                continue;
++#endif
+             checksum = CalculateChecksum(gReadWriteSector->data, locations[gReadWriteSector->id].size);
+             if (gReadWriteSector->checksum == checksum)
+             {

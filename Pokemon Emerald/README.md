@@ -4,6 +4,8 @@ The agent starts at boot, sees a 60 × 40 RGB image and a compact description of
 
 ## Run with mGBA
 
+[Windows validation and training measurements](NATIVE_RESULTS.md)
+
 Use Python 3.11, NumPy, Pillow, and PyTorch. Install a CUDA-enabled PyTorch build when using an NVIDIA GPU. The laptop run used PyTorch 2.7.1 with CUDA 12.8, NumPy 2.2.6, and Pillow 11.3. Supply the mGBA libretro core and an English Emerald revision 0 ROM matching SHA-1 `f3ae088181bf583e55daf962a92bb46f4f1d07b7`. Copy `local.example.json` to `local.json` and set the paths for your machine.
 
 ```powershell

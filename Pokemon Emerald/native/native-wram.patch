@@ -1,0 +1,42 @@
+diff --git a/src/bg.c b/src/bg.c
+index 2c82a42..680a573 100644
+--- a/src/bg.c
++++ b/src/bg.c
+@@ -1238,10 +1238,15 @@ bool32 IsInvalidBg32(u8 bg)
+ 
+ bool32 IsTileMapOutsideWram(u8 bg)
+ {
++#if NATIVE
++    extern u32 NativeIsWramPointer(const void *);
++    return !NativeIsWramPointer(sGpuBgConfigs2[bg].tilemap);
++#else
+     if (sGpuBgConfigs2[bg].tilemap > (void *)IWRAM_END)
+         return TRUE;
+     else if (sGpuBgConfigs2[bg].tilemap == NULL)
+         return TRUE;
+     else
+         return FALSE;
++#endif
+ }
+diff --git a/tools/native/native_engine.c b/tools/native/native_engine.c
+--- a/tools/native/native_engine.c
++++ b/tools/native/native_engine.c
+@@ -48,6 +59,18 @@ static NativeEngine *activeEngine;
+ static uintptr_t pointerPages[256];
+ static unsigned int pageCount = 16;
+ 
++// Runtime addresses of translated game globals depend on the host linker.
++// gHeap also lives in this storage. Use the linker bounds rather than
++// comparing an unrelated host pointer numerically to the emulated IWRAM.
++uint32_t NativeIsWramPointer(const void *pointer)
++{
++    uintptr_t p = (uintptr_t)pointer;
++    uintptr_t memory = (uintptr_t)gNativeMemory;
++    return (p >= (uintptr_t)gameBssStart && p < (uintptr_t)gameBssEnd)
++        || (p >= (uintptr_t)gameDataStart && p < (uintptr_t)gameDataEnd)
++        || (p >= memory + 0x02000000u && p <= memory + 0x03008000u);
++}
++
+ uint32_t NativePointerToWord(const void *pointer)
+ {
+     uintptr_t address = (uintptr_t)pointer;

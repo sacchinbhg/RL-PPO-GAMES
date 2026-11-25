@@ -1,0 +1,170 @@
+{
+  "truck-clear": {
+    "frame": 4408,
+    "map": null,
+    "phase": 5,
+    "clock": 0,
+    "met_rival": 0,
+    "route101_state": 0,
+    "party": 0
+  },
+  "outside-moving-truck": {
+    "frame": 4998,
+    "map": "LittlerootTown",
+    "phase": 5,
+    "clock": 0,
+    "met_rival": 0,
+    "route101_state": 0,
+    "party": 0
+  },
+  "after-mom": {
+    "frame": 6678,
+    "map": "LittlerootTown_BrendansHouse_1F",
+    "phase": 5,
+    "clock": 0,
+    "met_rival": 0,
+    "route101_state": 0,
+    "party": 0
+  },
+  "clock-confirm": {
+    "frame": 8848,
+    "map": "LittlerootTown_BrendansHouse_2F",
+    "phase": 7,
+    "clock": 0,
+    "met_rival": 0,
+    "route101_state": 0,
+    "party": 0
+  },
+  "after-clock": {
+    "frame": 11320,
+    "map": "LittlerootTown_BrendansHouse_2F",
+    "phase": 5,
+    "clock": 1,
+    "met_rival": 0,
+    "route101_state": 0,
+    "party": 0,
+    "rgb_sha256": "707ccb41431cb0210447b8cf40b1df533de21500b24fe14bac9cf6f70036bd02",
+    "matches_reference": true
+  },
+  "downstairs-1f": {
+    "frame": 11788,
+    "map": "LittlerootTown_BrendansHouse_1F",
+    "phase": 5,
+    "clock": 1,
+    "met_rival": 0,
+    "route101_state": 0,
+    "party": 0
+  },
+  "after-tv": {
+    "frame": 13972,
+    "map": "LittlerootTown_BrendansHouse_1F",
+    "phase": 5,
+    "clock": 1,
+    "met_rival": 0,
+    "route101_state": 0,
+    "party": 0
+  },
+  "outside-house": {
+    "frame": 14180,
+    "map": "LittlerootTown",
+    "phase": 5,
+    "clock": 1,
+    "met_rival": 0,
+    "route101_state": 0,
+    "party": 0
+  },
+  "inside-rival-house": {
+    "frame": 14596,
+    "map": "LittlerootTown_MaysHouse_1F",
+    "phase": 5,
+    "clock": 1,
+    "met_rival": 0,
+    "route101_state": 0,
+    "party": 0
+  },
+  "rival-room": {
+    "frame": 17976,
+    "map": "LittlerootTown_MaysHouse_2F",
+    "phase": 5,
+    "clock": 1,
+    "met_rival": 0,
+    "route101_state": 0,
+    "party": 0
+  },
+  "after-rival-room": {
+    "frame": 20184,
+    "map": "LittlerootTown_MaysHouse_2F",
+    "phase": 5,
+    "clock": 1,
+    "met_rival": 1,
+    "route101_state": 0,
+    "party": 0
+  },
+  "outside-rival-house": {
+    "frame": 20574,
+    "map": "LittlerootTown",
+    "phase": 5,
+    "clock": 1,
+    "met_rival": 1,
+    "route101_state": 0,
+    "party": 0,
+    "rgb_sha256": "f3743f519a957a72e832b036fbfb76826796f325078e590d9ea80513c57e4c34",
+    "matches_reference": true
+  },
+  "route-blocker-cleared": {
+    "frame": 23126,
+    "map": "LittlerootTown",
+    "phase": 5,
+    "clock": 1,
+    "met_rival": 1,
+    "route101_state": 0,
+    "party": 0
+  },
+  "route101-rescue-start": {
+    "frame": 23230,
+    "map": "Route101",
+    "phase": 5,
+    "clock": 1,
+    "met_rival": 1,
+    "route101_state": 1,
+    "party": 0
+  },
+  "beside-birchs-bag": {
+    "frame": 25856,
+    "map": "Route101",
+    "phase": 5,
+    "clock": 1,
+    "met_rival": 1,
+    "route101_state": 2,
+    "party": 0
+  },
+  "bag-open": {
+    "frame": 26108,
+    "map": "Route101",
+    "phase": 7,
+    "clock": 1,
+    "met_rival": 1,
+    "route101_state": 2,
+    "party": 0
+  },
+  "mudkip-highlighted": {
+    "frame": 26172,
+    "map": "Route101",
+    "phase": 7,
+    "clock": 1,
+    "met_rival": 1,
+    "route101_state": 2,
+    "party": 0
+  },
+  "mudkip-battle": {
+    "frame": 27228,
+    "map": "Route101",
+    "phase": 6,
+    "clock": 1,
+    "met_rival": 1,
+    "route101_state": 2,
+    "party": 1,
+    "rgb_sha256": "91fed56d6f7dbeba927bf7eb50605f72c5f47d2662af6447ea1edd259a67b092",
+    "matches_reference": true
+  }
+}

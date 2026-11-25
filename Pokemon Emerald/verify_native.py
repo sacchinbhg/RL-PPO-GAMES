@@ -15,6 +15,7 @@ from pool_gba import Pool
 
 
 def reference(cfg, trace, out):
+    oracle = json.loads((Path(__file__).parent / "native/reference_rgb.json").read_text())["sha256"]
     buttons = {name: 1 << i for i, name in enumerate(
         ["a", "b", "select", "start", "right", "left", "up", "down", "r", "l"])}
     events = defaultdict(list)
@@ -43,13 +44,18 @@ def reference(cfg, trace, out):
                 k = env.inspect()
                 rows[entry[1]] = dict(frame=frame, map=location(k), phase=k[0],
                                       clock=k[6], met_rival=k[9], route101_state=k[10], party=k[11])
-                if entry[1] in {"after-clock", "outside-rival-house", "mudkip-battle"}:
+                if entry[1] in oracle:
                     Image.fromarray(env.screen).save(out / (entry[1] + ".png"))
+                    checksum = hashlib.sha256(env.screen.tobytes()).hexdigest()
+                    rows[entry[1]].update(rgb_sha256=checksum, matches_reference=checksum == oracle[entry[1]])
         write_json(out / "scripted-replay.json", rows)
         required = (rows["after-clock"]["clock"], rows["outside-rival-house"]["met_rival"],
                     rows["mudkip-battle"]["party"] == 1, rows["mudkip-battle"]["phase"] == 6)
         if not all(required):
             raise AssertionError(f"Reference milestones failed: {required}")
+        bad = [label for label in oracle if not rows[label]["matches_reference"]]
+        if bad:
+            raise AssertionError(f"Native observations differ from the pinned upstream visual replay: {bad}")
         return rows["mudkip-battle"]
     finally:
         env.close()
@@ -101,6 +107,7 @@ if __name__ == "__main__":
     for backend in ("native", "mgba", "mgba", "native"):
         results.append(bench(cfg, backend, actions))
         write_json(args.out / "benchmark.json", dict(scripted_reference=reference_result,
+                   native_core_sha256=hashlib.sha256(Path(cfg["native_core"]).read_bytes()).hexdigest(),
                    samples=results, unit="one action advances 24 frames and returns RGB and state",
                    workload="eight workers; fixed inputs; existing overnight training running concurrently"))
         print(results[-1], flush=True)
