@@ -99,7 +99,7 @@ class Options:
         return chosen
 
 
-def run(folder, budget, motion_probe=None, stage_reservoir=0):
+def run(folder, budget, motion_probe=None, stage_reservoir=0, proposal=None):
     origin=json.loads((folder/"branch-origin.json").read_text())
     settings=dict(seed=origin["seed"],training_forks=True,receives_saves_from_other_runs=False,
                   observation="RGB, scalar reward, episode end", root="self-earned cold-boot action history",
@@ -108,6 +108,12 @@ def run(folder, budget, motion_probe=None, stage_reservoir=0):
         settings["visual_motion_source"]=json.loads(motion_probe.read_text())["training_tape_sha256"]
     if stage_reservoir:
         settings["stage_reservoir"]=stage_reservoir
+    if proposal:
+        settings["proposal"]=proposal["kind"]
+        settings["proposal_probability_per_option"]=.5
+        if proposal["kind"]=="dreamer":
+            from train_earned_dreamer import digest
+            settings["proposal_weight_sha256"]=digest(proposal["checkpoint"]/"agent.pkl")
     setup=folder/"settings.json"
     if setup.exists() and json.loads(setup.read_text())!=settings:
         raise ValueError("A different experiment owns this directory")
@@ -130,7 +136,17 @@ def run(folder, budget, motion_probe=None, stage_reservoir=0):
         guide=MotionGuide(motion_probe,rng)
         if guide.source!=origin["parent_record"]["tape_sha256"]:
             raise ValueError("Motion model must come from the same self-earned branch")
+    actor=None
+    if proposal and proposal["kind"]=="dreamer":
+        from play_frozen_dreamer import load_actor
+        actor=load_actor(proposal["checkpoint"],proposal["parent"],origin["seed"],proposal["upstream"],
+                         batch_size=1,with_forks=True)
     env=ForkEnv(folder/"first-maps")
+    proposal_choices=0
+    if proposal:
+        from fork_policy import ProposalEnv
+        gate=np.random.default_rng([origin["seed"],work,919])
+        env=ProposalEnv(env,actor,np.random.default_rng([origin["seed"],work,519]))
     try:
         warm_start=time.monotonic()
         archive=Archive(env,rng)
@@ -188,7 +204,11 @@ def run(folder, budget, motion_probe=None, stage_reservoir=0):
             branches+=1
             while work<stop:
                 start_state=state
-                guided=guide.choose() if guide else None
+                if proposal and gate.random()<.5:
+                    guided=env.propose(),1
+                    proposal_choices+=1
+                else:
+                    guided=guide.choose() if guide else None
                 button,duration=guided or model.choose(state,stop-work)
                 if guided:
                     model.visits[state]+=1
@@ -196,7 +216,7 @@ def run(folder, budget, motion_probe=None, stage_reservoir=0):
                 remaining=duration
                 earned=0
                 while remaining:
-                    pic,cents,terminal,used=env.command("step",(button,1 if guide else remaining))
+                    pic,cents,terminal,used=env.command("step",(button,1 if guide or proposal else remaining))
                     state=model.screen(pic)
                     if guide:
                         guide.observe(button,pic,state)
@@ -234,6 +254,9 @@ def run(folder, budget, motion_probe=None, stage_reservoir=0):
                 status.update(landmark_stage=landmarks.stage,landmark_slots=len(landmarks.points),
                               landmark_appearances=len(landmarks.seen),landmark_starts=landmarks.chosen,
                               landmark_start_length_bins=dict(landmarks.starts))
+            if proposal:
+                status.update(proposals_executed=proposal_choices,neural_observations=env.observed,
+                              verified_training_restores=env.restores)
             write_json(folder/"status.json",status)
     finally:
         env.close()
@@ -250,6 +273,11 @@ if __name__=="__main__":
     parser.add_argument("--motion-probe",type=Path)
     parser.add_argument("--stage-reservoir",type=int,default=0,
                         help="Keep this many visual landmarks at the highest number of large scalar rewards")
+    predictors=parser.add_mutually_exclusive_group()
+    predictors.add_argument("--dreamer-proposal",type=Path,help="Use a frozen Dreamer checkpoint for half of option choices")
+    predictors.add_argument("--uniform-proposal",action="store_true",help="Use uniform buttons at the same choice rate")
+    parser.add_argument("--proposal-parent",type=Path)
+    parser.add_argument("--upstream",type=Path)
     args=parser.parse_args()
     if not 0<=args.stage_reservoir<=256:
         parser.error("The number of visual landmarks must be between 0 and 256")
@@ -261,4 +289,11 @@ if __name__=="__main__":
         if args.additional_steps<=0:
             parser.error("Additional search decisions must be positive")
         budget=json.loads((folder/"branch-origin.json").read_text())["inherited_training_buttons"]+args.additional_steps
-    run(folder,budget,args.motion_probe,args.stage_reservoir)
+    proposal=None
+    if args.dreamer_proposal:
+        if not args.proposal_parent or not args.upstream:
+            parser.error("Provide the Dreamer parent configuration and upstream checkout")
+        proposal=dict(kind="dreamer",checkpoint=args.dreamer_proposal,parent=args.proposal_parent,upstream=args.upstream)
+    elif args.uniform_proposal:
+        proposal=dict(kind="uniform")
+    run(folder,budget,args.motion_probe,args.stage_reservoir,proposal)

@@ -21,7 +21,7 @@ def write_json(path, record):
     tmp.replace(path)
 
 
-def load_actor(checkpoint, source_run, seed, source, batch_size=4):
+def load_actor(checkpoint, source_run, seed, source, batch_size=4, with_forks=False):
     sys.path.insert(0, str(source))
     import elements
     import jax
@@ -70,6 +70,13 @@ def load_actor(checkpoint, source_run, seed, source, batch_size=4):
         carry, acts = apply(params, carry, jax.device_put(obs), key(count))
         count += 1
         return jax.device_get(acts)
+    if with_forks:
+        def snapshot():
+            return carry
+        def restore(saved):
+            nonlocal carry
+            carry=saved
+        return decide,snapshot,restore
     return decide
 
 
