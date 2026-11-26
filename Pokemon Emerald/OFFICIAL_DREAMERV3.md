@@ -170,3 +170,16 @@ python extend_earned_route.py --model MEMORY --checkpoint ADAPTATION/frozen-poli
 Add `--visual-route-recovery` with a new output directory to test whether the player can recover after losing its way. The controller builds a directed graph from consecutive RGB observations and buttons in its own training games. It estimates the cost of revisiting screens that appeared late in its highest-return game. After 256 decisions without a reward of at least 0.25, a familiar early screen can trigger a return attempt of up to 512 decisions. The actual next screen determines whether the suggested button worked. Dreamer resumes control when the route ends or its suggestions run out. The game continues throughout.
 
 The comparison records the first button changed by recovery. Use the same seed and checkpoint for the ordinary two-game run and check that its uniform control matches button for button. A separate audit records maps visited after each whiteout to measure whether the player independently regains ground.
+
+### Do imagined rewards rank the available buttons correctly?
+
+Collect alternatives from the agent's own verified training games. At a selected position, replay all nine first buttons in the emulator and hold the following fourteen buttons fixed. Positions are sampled from the scalar reward history. The collector checks that the recorded action reproduces the original rewards and final screen, and deduplicates identical inherited input prefixes.
+
+```bash
+python collect_button_alternatives.py --dataset FIRST_EARNED_GAME --dataset SECOND_EARNED_GAME --output ALTERNATIVES
+python forecast_button_alternatives.py --training ALTERNATIVES --parent PARENT_EVALUATION \
+  --checkpoint ADAPTATION/frozen-policy --upstream /opt/emerald-rl/source
+python calibrate_button_forecasts.py --training ALTERNATIVES --output TRAINED_CALIBRATOR
+```
+
+The pinned Dreamer reward head imagines fifteen steps from a history of 33 observed images and 32 previous buttons. Each candidate receives the same eight draws of latent noise. The forecast job verifies that replacing all future pixels leaves its predictions identical. The calibration fit uses measured returns from training branches. Its `score` function compares calibrated predictions with raw imagined returns, per-button preferences and a nearest-screen baseline. Evaluate those choices on other games and report the number of positions at which a different button changes the measured return.
