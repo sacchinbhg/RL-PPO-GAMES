@@ -25,7 +25,7 @@ class Node:
 
 
 class Frontier:
-    def __init__(self, env, rng, motions, capacity):
+    def __init__(self, env, rng, motions, capacity, sweep=False):
         self.env = env
         self.rng = rng
         self.capacity = capacity
@@ -33,13 +33,17 @@ class Frontier:
         self.visual_seen = set()
         self.stage = -1
         self.added = Counter()
+        self.sweep = sweep
         self.options = [((button, count),) for button in range(9) for count in (1, 2, 4, 8)]
         other = sorted(set(range(9)).difference(motions))
         self.options += [((move, count), (button, 1)) for move in sorted(motions)
                          for count in (1, 2, 4, 8) for button in other]
         rng.shuffle(self.options)
+        self.first_buttons = rng.permutation(9).tolist() if sweep else []
 
     def store(self, image, stage, depth, work, kind):
+        if self.sweep and kind == "appearance":
+            return False
         if stage < self.stage:
             return False
         if stage > self.stage:
@@ -74,7 +78,11 @@ class Frontier:
         sample = self.rng.choice(eligible, min(12, len(eligible)), replace=False)
         slot = min(map(int, sample), key=lambda i: self.slots[i].tries)
         node = self.slots[slot]
-        option = self.options[(node.offset + node.tries) % len(self.options)]
+        if self.sweep and node.tries < len(self.first_buttons):
+            button = self.first_buttons[(node.offset + node.tries) % len(self.first_buttons)]
+            option = ((button, 1),)
+        else:
+            option = self.options[(node.offset + node.tries) % len(self.options)]
         node.tries += 1
         frame = self.env.command("restore", slot)
         if visual_code(frame) != node.screen:
@@ -82,7 +90,7 @@ class Frontier:
         return node, frame, option
 
 
-def run(folder, arm, record, probe, steps, seed, capacity):
+def run(folder, arm, record, probe, steps, seed, capacity, sweep=False):
     arm = arm.resolve()
     settings = json.loads((arm / "settings.json").read_text())
     discovery = json.loads(record.read_text())
@@ -103,6 +111,9 @@ def run(folder, arm, record, probe, steps, seed, capacity):
                   inputs="RGB, scalar reward and termination", source_sha256=discovery["tape_sha256"],
                   motion_training_sha256=learned["training_tape_sha256"], new_simulator_decisions=steps,
                   reward_slots=capacity, appearance_slots=max(8, capacity // 8), frame_repeat=24)
+    if sweep:
+        config.update(reward_sweep=True, appearance_slots=0, first_pass="try every single button per reward state",
+                      model_continuation="one in sixteen branches receives 32 empirical transition-model decisions")
     setup = folder / "settings.json"
     if setup.exists() and json.loads(setup.read_text()) != config:
         raise ValueError("Another experiment already owns this directory")
@@ -115,7 +126,7 @@ def run(folder, arm, record, probe, steps, seed, capacity):
     behavior = ScreenExplorer(np.random.SeedSequence([seed, 1]))
     env = ForkEnv(folder / "first-maps", shared_visit_reward=True, trainer_audits=folder / "first-trainers")
     try:
-        archive = Frontier(env, rng, motions, capacity)
+        archive = Frontier(env, rng, motions, capacity, sweep)
         frame = env.initial
         state = visual_code(frame)
         stage = warm_total = 0
@@ -147,7 +158,10 @@ def run(folder, arm, record, probe, steps, seed, capacity):
             state, depth, stage = node.screen, node.depth, archive.stage
             previous_stage = high_stage
             # Longer branches let a new or unfamiliar screen unfold into later rewards.
-            explore = 128 if node.kind == "appearance" or rng.random() < .125 else 0
+            if sweep:
+                explore = 32 if rng.random() < 1/16 else 0
+            else:
+                explore = 128 if node.kind == "appearance" or rng.random() < .125 else 0
             plan = [button for button, count in option for _ in range(count)]
             progress = 0
             while work < steps and (progress < len(plan) or explore > 0):
@@ -169,7 +183,7 @@ def run(folder, arm, record, probe, steps, seed, capacity):
                 if cents > 0:
                     future_payments[cents] += 1
                     archive.store(frame, stage, depth, work, "reward")
-                elif button not in motions and following != state and appearance(previous) != appearance(frame):
+                elif not sweep and button not in motions and following != state and appearance(previous) != appearance(frame):
                     archive.store(frame, stage, depth, work, "appearance")
                 state = following
                 if stage > high_stage:
@@ -211,5 +225,7 @@ if __name__ == "__main__":
     parser.add_argument("--steps", type=int, default=262144)
     parser.add_argument("--capacity", type=int, default=768)
     parser.add_argument("--seed", type=int, default=173741)
+    parser.add_argument("--reward-sweep", action="store_true",
+                        help="Keep each newly rewarded snapshot and test all nine single buttons before longer options")
     args = parser.parse_args()
-    run(args.output, args.source, args.record, args.motion, args.steps, args.seed, args.capacity)
+    run(args.output, args.source, args.record, args.motion, args.steps, args.seed, args.capacity, args.reward_sweep)
