@@ -156,6 +156,8 @@ python explore_reward_frontiers.py --source OWN_TRAINING_SEARCH --record VERIFIE
 
 The search logs the original discovery cost, the cost of replaying its input history, and new emulated decisions separately. Export discoveries with `export_reward_branch.py` for training the official learner. Use fresh games to evaluate the resulting policy.
 
+For reporting, the emulator saves the complete input prefix the first time a trainer opponent appears in battle. These files are in `first-trainers/`. The controller receives its ordinary observation and reward. Replaying an encounter from boot establishes which trainer appeared. A later battle outcome is needed to verify a win.
+
 ### Can Dreamer extend a route that memory can repeat?
 
 Run two fresh boots with the same frozen visual memory. When both games reach the end of a stored sequence or make no progress through the known screens for 512 decisions, the trained Dreamer controls the first game. Uniform random buttons control the second. Dreamer receives its actual previous input even while the memory chooses the buttons. The run checks that the two games have identical images and rewards until the switch. Read `handoff.json` for the first decision made independently in each game.

@@ -113,7 +113,7 @@ def run(folder, arm, record, probe, steps, seed, capacity):
                inherited_training_buttons=discovery["work"], cold_replay_buttons=len(tape)))
     rng = np.random.default_rng(seed)
     behavior = ScreenExplorer(np.random.SeedSequence([seed, 1]))
-    env = ForkEnv(folder / "first-maps", shared_visit_reward=True)
+    env = ForkEnv(folder / "first-maps", shared_visit_reward=True, trainer_audits=folder / "first-trainers")
     try:
         archive = Frontier(env, rng, motions, capacity)
         frame = env.initial

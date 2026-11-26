@@ -20,7 +20,7 @@ class VisitReward:
         return cents
 
 
-def _worker(pipe, map_audits=None, log_whiteouts=False, shared_visit_reward=False):
+def _worker(pipe, map_audits=None, log_whiteouts=False, shared_visit_reward=False, trainer_audits=None):
     from emerald import Emerald
     from pixel_env import Score, WhiteoutLog, first_map_audit, game_paths
 
@@ -35,6 +35,7 @@ def _worker(pipe, map_audits=None, log_whiteouts=False, shared_visit_reward=Fals
         if map_audits:
             map_audits.mkdir(parents=True, exist_ok=True)
         saved_maps = set()
+        saved_trainers = set()
         def audit(target, cents):
             target.mkdir(parents=True, exist_ok=True)
             (target / "game.bin").write_bytes(tape)
@@ -74,6 +75,13 @@ def _worker(pipe, map_audits=None, log_whiteouts=False, shared_visit_reward=Fals
                         if name not in saved_maps:
                             first_map_audit(map_audits, name, lambda target: audit(target,total+original_reward))
                             saved_maps.add(name)
+                    if trainer_audits is not None and descriptor[0] == 6:
+                        battle_type = int.from_bytes(game.ram(0x02022fec, 4), "little")
+                        if battle_type & 8:
+                            opponent = int.from_bytes(game.ram(0x02038bca, 2), "little")
+                            if opponent not in saved_trainers:
+                                first_map_audit(trainer_audits, f"trainer-{opponent:05d}", lambda target: audit(target,total+original_reward))
+                                saved_trainers.add(opponent)
                     if reward or terminal:
                         break
                 total += original_reward
@@ -102,10 +110,10 @@ def _worker(pipe, map_audits=None, log_whiteouts=False, shared_visit_reward=Fals
 
 
 class ForkEnv:
-    def __init__(self, map_audits=None, log_whiteouts=False, shared_visit_reward=False):
+    def __init__(self, map_audits=None, log_whiteouts=False, shared_visit_reward=False, trainer_audits=None):
         ctx = mp.get_context("spawn")
         self.pipe, back = ctx.Pipe()
-        self.process = ctx.Process(target=_worker, args=(back,map_audits,log_whiteouts,shared_visit_reward), daemon=True)
+        self.process = ctx.Process(target=_worker, args=(back,map_audits,log_whiteouts,shared_visit_reward,trainer_audits), daemon=True)
         self.process.start()
         back.close()
         self.initial = self.receive()
