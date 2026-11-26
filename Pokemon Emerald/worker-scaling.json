@@ -1,0 +1,7 @@
+{
+  "eight_workers_peak_allocated_mib": 36.8,
+  "steps_each": 8192,
+  "eight_workers_active_sps": 283.5,
+  "four_workers_active_sps": 169.6,
+  "eight_workers_wall_seconds": 34.8114961
+}

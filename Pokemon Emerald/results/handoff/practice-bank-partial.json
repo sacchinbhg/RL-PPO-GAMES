@@ -1,0 +1,10 @@
+{
+  "decisions": 34816,
+  "expected": 40597,
+  "feedback": {
+    "won": 8,
+    "lost": 0,
+    "health_changes": 26,
+    "scalar_return": 11.616868257600524
+  }
+}

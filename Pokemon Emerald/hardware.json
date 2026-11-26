@@ -1,0 +1,18 @@
+{
+  "device": "NVIDIA GeForce RTX 4060 Laptop GPU",
+  "torch": "2.7.1+cu128",
+  "cpu_threads": 2,
+  "parameters": 55434,
+  "peak_allocated_mib": 30.3,
+  "results": {
+    "cuda": {
+      "inference_batch4_ms": 3.48,
+      "train_batch128_ms": 8.309
+    },
+    "cpu": {
+      "inference_batch4_ms": 2.395,
+      "train_batch128_ms": 24.529
+    }
+  },
+  "protocol": "Synthetic tensors already on device, 12 warmup and 100 timed iterations, FP32. Concurrent source build."
+}

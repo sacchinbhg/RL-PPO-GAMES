@@ -165,7 +165,8 @@ def run(folder, arm, record, probe, steps, seed, capacity, sweep=False, tile_vis
     discovery = json.loads(record.read_text())
     source = (arm / discovery["audit"] / "game.bin").resolve()
     tape = source.read_bytes()
-    if (not tape or not settings.get("training_forks") or settings.get("receives_saves_from_other_runs")
+    from earned_starts import verified_reset_lineage
+    if (not tape or not settings.get("training_forks") or not verified_reset_lineage(arm,settings,tape)
             or not discovery["training_only"] or not source.is_relative_to(arm / "discoveries")
             or hashlib.sha256(tape).hexdigest() != discovery["tape_sha256"]):
         raise ValueError("Expected a verified self-earned training discovery")

@@ -1,0 +1,48 @@
+{
+  "controller": "training-only retry policy",
+  "independent_opponent_verification": "pending",
+  "games": [
+    {
+      "game": "6d0c3fe2350f-00",
+      "steps": 40853,
+      "sha256": "0e4f1b00b12fc1b95ff5f48a2d9ef505e7177067176bad5038d8a12eddfe1549",
+      "source_prefix": "6d0c3fe2350f05bfb75785d3d00ec75eedf7ed208df8c8c0db2f9efdc9b4fbf1"
+    },
+    {
+      "game": "6d0c3fe2350f-03",
+      "steps": 40531,
+      "sha256": "20a5a347c95f0c26ac94dcd65e37a4edecbf78649ae32cd2638196791d8a33b4",
+      "source_prefix": "6d0c3fe2350f05bfb75785d3d00ec75eedf7ed208df8c8c0db2f9efdc9b4fbf1"
+    },
+    {
+      "game": "6d0c3fe2350f-05",
+      "steps": 40489,
+      "sha256": "f666acdcdeda70b5b6886d44cd05ecdd66743f33ac6e41be223760095ef3cdda",
+      "source_prefix": "6d0c3fe2350f05bfb75785d3d00ec75eedf7ed208df8c8c0db2f9efdc9b4fbf1"
+    },
+    {
+      "game": "8bf6a6c3d93d-02",
+      "steps": 40274,
+      "sha256": "4ec6823970c3d77645756d6680fb56f2cde14256a94a7b6f8a1663c4d068bf08",
+      "source_prefix": "8bf6a6c3d93d635f5d3c40aa24c1bd6062d7450c65a2f9de762bfaf37671ec3d"
+    },
+    {
+      "game": "8bf6a6c3d93d-03",
+      "steps": 40376,
+      "sha256": "e5a044b88a8a2a51abc3572a4ce924557d775be69ca6128af5f855d9b9947d44",
+      "source_prefix": "8bf6a6c3d93d635f5d3c40aa24c1bd6062d7450c65a2f9de762bfaf37671ec3d"
+    },
+    {
+      "game": "8bf6a6c3d93d-05",
+      "steps": 40382,
+      "sha256": "652167c9790f7a56d056cf76c3e8854854ffa5ac05bc3a05f49b34392fdf62a1",
+      "source_prefix": "8bf6a6c3d93d635f5d3c40aa24c1bd6062d7450c65a2f9de762bfaf37671ec3d"
+    },
+    {
+      "game": "8bf6a6c3d93d-06",
+      "steps": 40398,
+      "sha256": "b34c02a03d5d288a786c80ef7fe7de794a62c9dc43737577f56944e5ffb87ec9",
+      "source_prefix": "8bf6a6c3d93d635f5d3c40aa24c1bd6062d7450c65a2f9de762bfaf37671ec3d"
+    }
+  ]
+}

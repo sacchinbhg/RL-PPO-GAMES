@@ -13,7 +13,7 @@ import time
 import numpy as np
 from PIL import Image, ImageDraw
 
-from emerald import BUTTONS, PHASES, REPEAT, ROM_SHA1, verify_rom
+from emerald import BUTTONS, MAPS, PHASES, REPEAT, ROM_SHA1, verify_rom
 from pool_gba import Pool
 
 
@@ -22,9 +22,6 @@ def location(key):
     if 0 <= group < len(MAPS) and 0 <= num < len(MAPS[group]):
         return MAPS[group][num]
     return None
-
-
-MAPS = json.loads(Path(__file__).with_name("maps.json").read_text())
 
 
 def progress(k):

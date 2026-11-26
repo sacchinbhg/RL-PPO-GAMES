@@ -1,0 +1,131 @@
+{
+  "local_date": "2026-11-26",
+  "timezone": "America/Los_Angeles",
+  "replays": [
+    {
+      "name": "rival-training",
+      "steps": 40548,
+      "sha256": "e519f80178b2f146c433b09723d899a53d167bdd611238ca88498b13e33d414a"
+    },
+    {
+      "name": "route103-frozen",
+      "steps": 65536,
+      "sha256": "6ce007fa9f08547f2eae9c04f035098a0a7292e6c5bd9c7e6301004be5c9a362"
+    }
+  ],
+  "official_earned_reset_comparison": {
+    "earned": {
+      "training": {
+        "checkpoint": "20261126T091230F868852",
+        "sha256": "62bf43a4af9bfd4f81618e5688c6011b3ae1ed82368ec9ff529848a54e23bf7a",
+        "initial_sha256": "8c559d8dee90ad3b52427c5c38b5ee7ec37a9828675db9d10aa1102d19d11fab",
+        "changed_module_groups": [
+          "con",
+          "dec",
+          "dyn",
+          "enc",
+          "opt",
+          "pol",
+          "retnorm",
+          "rew",
+          "slowval",
+          "slowval_count",
+          "val"
+        ],
+        "real_emulator_actions_in_replay": 32774,
+        "reset_observations": 10
+      },
+      "evaluation_complete": true,
+      "evaluation": {
+        "decisions_per_game": 65536,
+        "verified_prefix_per_game": 0,
+        "aggregate_buttons": 262144,
+        "aggregate_buttons_per_second": 143.21810123550478
+      },
+      "latest_full_audits": [
+        {
+          "lane": "env-0",
+          "steps": 65536,
+          "events": {
+            "bedroom": 1691,
+            "clock": 2731,
+            "sent_to_meet_rival": 10963
+          }
+        },
+        {
+          "lane": "env-1",
+          "steps": 65536,
+          "events": {
+            "bedroom": 2086,
+            "clock": 6245,
+            "sent_to_meet_rival": 8111
+          }
+        },
+        {
+          "lane": "env-2",
+          "steps": 65536,
+          "events": {
+            "bedroom": 1169,
+            "clock": 2850,
+            "sent_to_meet_rival": 12253
+          }
+        },
+        {
+          "lane": "env-3",
+          "steps": 65536,
+          "events": {
+            "bedroom": 5976,
+            "clock": 13767,
+            "sent_to_meet_rival": 14064
+          }
+        }
+      ]
+    },
+    "boot": {
+      "training": {
+        "checkpoint": "20261126T092102F439269",
+        "sha256": "fa0ea32f99bb6e8c140f353ac6cefac28ee8bc34eeadb5209973473a9e9741bb",
+        "initial_sha256": "8c559d8dee90ad3b52427c5c38b5ee7ec37a9828675db9d10aa1102d19d11fab",
+        "changed_module_groups": [
+          "con",
+          "dec",
+          "dyn",
+          "enc",
+          "opt",
+          "pol",
+          "retnorm",
+          "rew",
+          "slowval",
+          "slowval_count",
+          "val"
+        ],
+        "real_emulator_actions_in_replay": 32774,
+        "reset_observations": 10
+      },
+      "evaluation_complete": false,
+      "evaluation": {
+        "decisions_per_game": 3072,
+        "verified_prefix_per_game": 0,
+        "aggregate_buttons": 12288,
+        "aggregate_buttons_per_second": 141.69209558798488
+      },
+      "latest_full_audits": []
+    }
+  },
+  "official_mixed_checkpoint": 524304,
+  "unassisted_primary_search": {
+    "work": 1386112,
+    "branches": 1721,
+    "best_return_cents": 3954,
+    "latest_path_length": 55539,
+    "slots": 65,
+    "historical_peak_cents": 3954,
+    "distinct_screen_codes": 14782,
+    "steps_per_second": 43.70021556451286
+  },
+  "practice_continuations": {
+    "new_buttons": 4608,
+    "branches": 9,
+    "best_return_cents": 3826
+  }
+}

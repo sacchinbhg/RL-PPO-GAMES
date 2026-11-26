@@ -36,26 +36,30 @@ def observation_hash(frame, state, reward, terminal):
 
 def verified_reset_lineage(run,settings,tape=None):
     """Check that imported training states came from the recorded parent's own original-game play."""
-    if not settings.get("receives_saves_from_other_runs"):
-        return True
-    if not settings.get("uses_verified_own_training_snapshots") or settings.get("external_playthrough_or_human_save") is not False:
-        return False
-    origin=json.loads((run/"branch-origin.json").read_text())
-    info=json.loads((run/"earned-start-provenance.json").read_text())
-    parent=Path(origin["source_run"]).resolve()
-    policy=json.loads((parent/"settings.json").read_text())
-    record=origin["parent_record"]
-    history=(parent/record["audit"]/"game.bin").resolve()
-    if (not policy.get("training_forks") or policy.get("receives_saves_from_other_runs") or not record["training_only"]
-            or not history.is_relative_to(parent/"discoveries")):
-        return False
-    source=history.read_bytes()
-    starts=info["starts"]
-    return (info["all_starts_verified"] and info["training_only"] and info["rom_sha1"]==ROM_SHA1
-            and checksum(source)==record["tape_sha256"]==settings["source_sha256"]==info["source_sha256"]
-            and [s["sha256"] for s in starts]==settings["bank_snapshot_sha256"]
-            and all(0<s["prefix"]<=len(source) for s in starts) and bool(starts)
-            and (tape is None or any(tape.startswith(source[:s["prefix"]]) for s in starts)))
+    visited=set()
+    while settings.get("receives_saves_from_other_runs"):
+        run=run.resolve()
+        if (run in visited or not settings.get("training_forks") or not settings.get("uses_verified_own_training_snapshots")
+                or settings.get("external_playthrough_or_human_save") is not False):
+            return False
+        visited.add(run)
+        origin=json.loads((run/"branch-origin.json").read_text())
+        info=json.loads((run/"earned-start-provenance.json").read_text())
+        parent=Path(origin["source_run"]).resolve()
+        record=origin["parent_record"]
+        history=(parent/record["audit"]/"game.bin").resolve()
+        if not record["training_only"] or not history.is_relative_to(parent/"discoveries"):
+            return False
+        source=history.read_bytes()
+        starts=info["starts"]
+        if not (info["all_starts_verified"] and info["training_only"] and info["rom_sha1"]==ROM_SHA1
+                and len(source)==record["length"] and checksum(source)==record["tape_sha256"]==settings["source_sha256"]==info["source_sha256"]
+                and [s["sha256"] for s in starts]==settings["bank_snapshot_sha256"] and starts
+                and all(0<s["prefix"]<=len(source) for s in starts)
+                and (tape is None or any(tape.startswith(source[:s["prefix"]]) for s in starts))):
+            return False
+        run,settings,tape=parent,json.loads((parent/"settings.json").read_text()),source
+    return bool(settings.get("training_forks"))
 
 class EarnedStarts:
     def __init__(self, directory):
@@ -88,12 +92,13 @@ def prepare(arm, record_path, output, count=8):
     record = json.loads(record_path.read_text())
     cfg = json.loads((arm/"settings.json").read_text())
     audit_dir = (arm/record["audit"]).resolve()
-    if (not cfg.get("training_forks") or cfg.get("receives_saves_from_other_runs")
+    if (not cfg.get("training_forks")
             or not record["training_only"] or not audit_dir.is_relative_to(arm/"discoveries") or count < 2):
         raise ValueError("Use an original self-earned training record")
     source = (audit_dir/"game.bin").read_bytes()
     audit = json.loads((audit_dir/"game.json").read_text())
-    if checksum(source) != record["tape_sha256"] or len(source) != record["length"] or not audit["uncapped_exploration"]:
+    if (checksum(source) != record["tape_sha256"] or len(source) != record["length"] or not audit["uncapped_exploration"]
+            or not verified_reset_lineage(arm,cfg,source)):
         raise ValueError("Expected a matching training game with uncapped visit rewards")
     output.mkdir(parents=True, exist_ok=True)
     core, rom = game_paths()

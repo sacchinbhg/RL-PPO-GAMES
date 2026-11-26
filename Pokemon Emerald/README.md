@@ -1,5 +1,7 @@
 # Pokémon Emerald world-model training
 
+The November 26 handoff records the stopping point, verified gameplay, preserved checkpoints and how to resume. [Agent handoff](HANDOFF.md)
+
 The official JAX DreamerV3 experiment uses game pixels, scalar rewards, and fresh games on a WSL2 NVIDIA GPU. Its matched runs compare one and 15 imagined steps. [Run the official DreamerV3 experiment](OFFICIAL_DREAMERV3.md)
 
 The agent starts at boot, sees a 60 × 40 RGB image and a compact description of game state, and selects one of nine controller actions. A decision advances 24 game frames. The trainer supports PPO, PPO with an archive of the agent’s own discoveries, and a world model with short imagination rollouts. Frozen-policy evaluations start new games with archive resets disabled.

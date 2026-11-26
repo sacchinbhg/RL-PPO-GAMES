@@ -1,6 +1,6 @@
 # Pokémon Emerald with official DreamerV3
 
-The experiment trains the DreamerV3 author's JAX learner to earn the Stone Badge in Pokémon Emerald. Every episode starts at boot on the English revision 0 ROM. The policy receives RGB frames and chooses one of nine buttons, including wait. A separate emulator worker computes scalar rewards from game events and writes an action tape for verification. It sends the learner the image, reward and episode boundary. All training data comes from the current policy interacting with the game.
+The experiment trains the DreamerV3 author's JAX learner to earn the Stone Badge in Pokémon Emerald. In the baseline, every episode starts at boot on the English revision 0 ROM and the current policy collects the training data. The policy receives RGB frames and chooses one of nine buttons, including wait. A separate emulator worker computes scalar rewards and writes an action tape for verification. Later experiments also used self-earned training positions, archived experience or screen-explorer workers. Fresh-game evaluations start at boot. [Which controller produced each result](HANDOFF.md)
 
 The paired experiment changes DreamerV3's imagination horizon from 15 to 1. Both policies train in a learned world model. Record each run's actual training step, elapsed time and fresh-game milestone counts to measure what the additional imagined steps buy.
 

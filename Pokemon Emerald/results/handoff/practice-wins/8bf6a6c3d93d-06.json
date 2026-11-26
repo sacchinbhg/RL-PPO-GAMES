@@ -1,0 +1,36 @@
+{
+  "steps": 40398,
+  "first_visit_cells": 428,
+  "events": {
+    "bedroom": 1221,
+    "clock": 2772,
+    "sent_to_meet_rival": 4007,
+    "met_rival": 6770,
+    "route101": 14985,
+    "heard_birch": 15015,
+    "starter": 15367,
+    "lab_handoff": 15853
+  },
+  "maps_first_reached": {
+    "InsideOfTruck": 569,
+    "LittlerootTown": 881,
+    "LittlerootTown_BrendansHouse_1F": 935,
+    "LittlerootTown_BrendansHouse_2F": 1221,
+    "LittlerootTown_MaysHouse_1F": 5225,
+    "LittlerootTown_MaysHouse_2F": 6610,
+    "LittlerootTown_ProfessorBirchsLab": 10307,
+    "Route101": 14985,
+    "OldaleTown": 27916,
+    "OldaleTown_PokemonCenter_1F": 28451,
+    "OldaleTown_PokemonCenter_2F": 30046,
+    "OldaleTown_Mart": 35235,
+    "OldaleTown_House1": 35853,
+    "Route103": 37258
+  },
+  "return_cents": 3806,
+  "uncapped_exploration": true,
+  "training_only": true,
+  "source_prefix": "8bf6a6c3d93d635f5d3c40aa24c1bd6062d7450c65a2f9de762bfaf37671ec3d",
+  "scalar_outcome": 100,
+  "action_source": "training"
+}

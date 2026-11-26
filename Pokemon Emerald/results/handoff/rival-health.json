@@ -1,0 +1,54 @@
+{
+  "entry_party": {
+    "level": 7,
+    "hp": 3,
+    "maximum": 23
+  },
+  "hp_changes": [
+    {
+      "decision": 40073,
+      "hp": [
+        [
+          3,
+          23
+        ],
+        [
+          15,
+          15
+        ]
+      ]
+    },
+    {
+      "decision": 40074,
+      "hp": [
+        [
+          3,
+          23
+        ],
+        [
+          20,
+          20
+        ]
+      ]
+    },
+    {
+      "decision": 40443,
+      "hp": [
+        [
+          0,
+          23
+        ],
+        [
+          20,
+          20
+        ]
+      ]
+    }
+  ],
+  "source_sha256": "e519f80178b2f146c433b09723d899a53d167bdd611238ca88498b13e33d414a",
+  "human_review_only": true,
+  "order": [
+    "player",
+    "opponent"
+  ]
+}

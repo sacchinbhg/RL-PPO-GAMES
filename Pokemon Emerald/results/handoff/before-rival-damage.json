@@ -1,0 +1,42 @@
+{
+  "from_verified_prefix": 35165,
+  "to_decision": 40072,
+  "initial": [
+    10,
+    23
+  ],
+  "final": [
+    3,
+    23
+  ],
+  "changes": [
+    {
+      "step": 38652,
+      "previous": [
+        10,
+        23
+      ],
+      "current": [
+        5,
+        23
+      ],
+      "frames_to_trainer": 34104,
+      "battle_callback": true
+    },
+    {
+      "step": 38792,
+      "previous": [
+        5,
+        23
+      ],
+      "current": [
+        3,
+        23
+      ],
+      "frames_to_trainer": 30744,
+      "battle_callback": true
+    }
+  ],
+  "source_sha256": "e519f80178b2f146c433b09723d899a53d167bdd611238ca88498b13e33d414a",
+  "human_review_only": true
+}

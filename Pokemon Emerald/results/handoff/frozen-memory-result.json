@@ -1,0 +1,19 @@
+{
+  "model_sha256": "698d319015dae7ae1cf805711476e93173d881b6682cd0c01ac5e8c3d118ae88",
+  "seed": 197461,
+  "button_budget": 65536,
+  "external_wait_interval": 0,
+  "training_updates": 0,
+  "in_game_restores": 0,
+  "controller": "frozen screen-conditioned self-imitation memory",
+  "decisions": 65536,
+  "action_sources": {
+    "retrieved_matching_screen": 85,
+    "confirmed_next_screen": 57315,
+    "close_visual_prediction": 1772,
+    "unknown_screen": 6036,
+    "corrected_with_local_screen": 328
+  },
+  "changed_actions": 0,
+  "verified_badge": false
+}
