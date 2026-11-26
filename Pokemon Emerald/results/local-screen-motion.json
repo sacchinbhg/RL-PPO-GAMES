@@ -1,0 +1,27 @@
+{
+  "qualifies_for_live_comparison": true,
+  "measured": {
+    "test_source": "356dad81cfa052ab84bd209a2bb437f98d267153bb569c93066a0b503481414b",
+    "heldout_positions": 134,
+    "trained_on_test": false,
+    "excluded_exact_screens": 2,
+    "action_sensitive_positions": 78,
+    "uniform": 0.6442307829856873,
+    "results": {
+      "button_frequency": {
+        "realized_scroll": 0.6410256410256411,
+        "mean_squared_error": 0.1737271398305893
+      },
+      "whole_screen": {
+        "realized_scroll": 0.767094017094017,
+        "mean_squared_error": 0.17299433052539825
+      },
+      "local_screen": {
+        "realized_scroll": 0.8632478632478632,
+        "mean_squared_error": 0.1251215636730194
+      }
+    },
+    "model_sha256": "a0007f9552ebbf73c2eab41650da69eec450bcb84a3574bf280fcec86fa74fa1",
+    "local_improvement_over_strongest_baseline": 0.09615384615384615
+  }
+}

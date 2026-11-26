@@ -90,7 +90,8 @@ class Frontier:
         return node, frame, option
 
 
-def run(folder, arm, record, probe, steps, seed, capacity, sweep=False, tile_visits=False):
+def run(folder, arm, record, probe, steps, seed, capacity, sweep=False, tile_visits=False,
+        movement_triples=False, scroll_model=None):
     arm = arm.resolve()
     settings = json.loads((arm / "settings.json").read_text())
     discovery = json.loads(record.read_text())
@@ -116,6 +117,15 @@ def run(folder, arm, record, probe, steps, seed, capacity, sweep=False, tile_vis
                       model_continuation="one in sixteen branches receives 32 empirical transition-model decisions")
     if tile_visits:
         config.update(visit_reward="0.005 per newly observed individual tile across the training search")
+    predictor = None
+    if scroll_model:
+        from fit_local_motion import ScrollModel
+        predictor = ScrollModel(scroll_model)
+        if not movement_triples or set(predictor.buttons) != motions:
+            raise ValueError("The three-decision movement options and learned motion buttons must agree")
+        config["scroll_model_sha256"] = predictor.sha
+    if movement_triples:
+        config["movement_triples"] = "with probability one half, repeat an eligible continuation movement three times"
     setup = folder / "settings.json"
     if setup.exists() and json.loads(setup.read_text()) != config:
         raise ValueError("Another experiment already owns this directory")
@@ -160,6 +170,8 @@ def run(folder, arm, record, probe, steps, seed, capacity, sweep=False, tile_vis
         high_stage = stage
         best = None
         future_payments = Counter()
+        option_counts = Counter()
+        option_rng = np.random.default_rng([seed, 809])
         start = time.monotonic()
         while work < steps:
             node, frame, option = archive.start()
@@ -173,13 +185,31 @@ def run(folder, arm, record, probe, steps, seed, capacity, sweep=False, tile_vis
                 explore = 128 if node.kind == "appearance" or rng.random() < .125 else 0
             plan = [button for button, count in option for _ in range(count)]
             progress = 0
+            repeated = 0
             while work < steps and (progress < len(plan) or explore > 0):
                 if progress < len(plan):
                     button = plan[progress]
                     behavior.visits[state] += 1
                     behavior.transitions.setdefault(state, {})
                 else:
-                    button = behavior.choose(state)
+                    if repeated:
+                        button = repeat_button
+                        behavior.visits[state] += 1
+                        behavior.transitions.setdefault(state, {})
+                        repeated -= 1
+                    else:
+                        button = behavior.choose(state)
+                        if movement_triples and explore >= 3 and work + 3 <= steps and button in motions and option_rng.random() < .5:
+                            tie_draw = option_rng.random()
+                            option_counts["three_button_choices"] += 1
+                            if predictor is not None:
+                                predictions = predictor.predictions(frame)
+                                choices = predictor.buttons[np.isclose(predictions, predictions.max(), atol=1e-6, rtol=0)]
+                                if button not in choices:
+                                    button = int(choices[int(tie_draw * len(choices))])
+                                    option_counts["changed_first_button"] += 1
+                            repeat_button = button
+                            repeated = 2
                     explore -= 1
                 previous = frame
                 frame, cents, done, _ = env.command("step", (button, 1))
@@ -219,6 +249,8 @@ def run(folder, arm, record, probe, steps, seed, capacity, sweep=False, tile_vis
                               best_return_cents=best["return_cents"], active_slots=len(archive.slots),
                               admissions=dict(archive.added), new_reward_counts=dict(future_payments),
                               steps_per_second=work / (time.monotonic()-start))
+                if movement_triples:
+                    status["movement_options"] = dict(option_counts)
                 write_json(folder / "status.json", status)
             if done:
                 break
@@ -238,6 +270,8 @@ if __name__ == "__main__":
                         help="Keep each newly rewarded snapshot and test all nine single buttons before longer options")
     parser.add_argument("--individual-tile-rewards", action="store_true",
                         help="During search, split each 2x2 block's potential 0.02 reward into 0.005 per visited tile")
+    parser.add_argument("--movement-triples", action="store_true", help="Test three repeated movement decisions in learned continuations")
+    parser.add_argument("--scroll-model", type=Path, help="Rank three-decision movement choices using a fitted local RGB model")
     args = parser.parse_args()
     run(args.output, args.source, args.record, args.motion, args.steps, args.seed, args.capacity,
-        args.reward_sweep, args.individual_tile_rewards)
+        args.reward_sweep, args.individual_tile_rewards, args.movement_triples, args.scroll_model)
