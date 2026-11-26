@@ -1,6 +1,7 @@
 __pycache__/
 *.pyc
 .venv/
+.venv-dreamer/
 local.json
 runs/
 upstream-emerald/

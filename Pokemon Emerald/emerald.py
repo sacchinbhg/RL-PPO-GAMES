@@ -2,7 +2,7 @@
 
 import ctypes as c
 import hashlib
-from functools import lru_cache
+import json
 from pathlib import Path
 import struct
 import zlib
@@ -14,6 +14,7 @@ ROM_SHA1 = "f3ae088181bf583e55daf962a92bb46f4f1d07b7"
 BUTTONS = ("wait", "A", "B", "Start", "Up", "Down", "Left", "Right", "Select")
 BUTTON_IDS = (None, 8, 0, 3, 4, 5, 6, 7, 2)
 PHASES = ("boot", "title", "main-menu", "Birch", "naming", "overworld", "battle", "other")
+MAPS = json.loads(Path(__file__).with_name("maps.json").read_text(encoding="utf-8"))
 REPEAT = 24
 
 
@@ -46,6 +47,7 @@ class Emerald:
         verify_rom(rom)
         self.lib = c.CDLL(str(Path(core).resolve()))
         self.regions = {}
+        self._headers = {}
         self.callbacks = []
         self.buttons = 0
         self.pixel_format = 0
@@ -172,17 +174,22 @@ class Emerald:
             self.lib.retro_run()
         return self.small_screen(), self.descriptor()
 
-    @lru_cache(maxsize=1024)
     def _header(self, group, number):
+        if not (0 <= group < len(MAPS) and 0 <= number < len(MAPS[group])):
+            return None
+        if (group, number) in self._headers:
+            return self._headers[group, number]
         def pointer(address):
             return struct.unpack_from("<I", self.rom_data, address - 0x08000000)[0]
         group_table = pointer(0x08486578 + 4 * group)
-        if not 0x08000000 <= group_table + 4 * number < 0x09000000:
+        if not 0x08000000 <= group_table + 4 * number <= 0x09000000 - 4:
             return None
         header = pointer(group_table + 4 * number)
         if not 0x08000000 <= header <= 0x09000000 - 28:
             return None
-        return (pointer(header + 4), struct.unpack_from("<H", self.rom_data, header - 0x08000000 + 18)[0])
+        fields = (pointer(header + 4), struct.unpack_from("<H", self.rom_data, header - 0x08000000 + 18)[0])
+        self._headers[group, number] = fields
+        return fields
 
     def verified_story(self, key):
         if key[0] not in (5, 6) or key[1] < 0 or key[5] > 6:
