@@ -12,9 +12,10 @@ def appearance(image):
 
 
 class SceneReservoir:
-    def __init__(self,env,rng,capacity,systematic=False):
+    def __init__(self,env,rng,capacity,systematic=False,reward_landmarks=False):
         self.env,self.rng,self.capacity=env,rng,capacity
         self.systematic=systematic
+        self.reward_landmarks=reward_landmarks
         self.attempts={}
         self.last_slot=None
         self.distinct_trials=0
@@ -25,6 +26,12 @@ class SceneReservoir:
         self.points=[]
         self.keys=[]
         self.chosen=0
+
+    def accepts(self,length,used,cents):
+        if self.reward_landmarks:
+            return cents>0
+        stride=16 if self.systematic else 64
+        return cents>=100 or length//stride!=(length-used)//stride
 
     def consider(self,point,image):
         if point.stage<self.stage:

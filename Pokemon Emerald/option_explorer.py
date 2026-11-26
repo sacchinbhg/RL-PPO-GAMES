@@ -99,7 +99,7 @@ class Options:
         return chosen
 
 
-def run(folder, budget, motion_probe=None, stage_reservoir=0, proposal=None, systematic=False):
+def run(folder, budget, motion_probe=None, stage_reservoir=0, proposal=None, systematic=False, reward_landmarks=False):
     origin=json.loads((folder/"branch-origin.json").read_text())
     settings=dict(seed=origin["seed"],training_forks=True,receives_saves_from_other_runs=False,
                   observation="RGB, scalar reward, episode end", root="self-earned cold-boot action history",
@@ -108,6 +108,10 @@ def run(folder, budget, motion_probe=None, stage_reservoir=0, proposal=None, sys
         settings["visual_motion_source"]=json.loads(motion_probe.read_text())["training_tape_sha256"]
     if stage_reservoir:
         settings["stage_reservoir"]=stage_reservoir
+    if reward_landmarks:
+        if not stage_reservoir:
+            raise ValueError("Reward-triggered landmarks require a positive reservoir size")
+        settings["landmark_candidates"]="positive observed scalar rewards"
     if systematic:
         if not stage_reservoir:
             raise ValueError("Systematic option trials require at least one visual landmark")
@@ -157,8 +161,8 @@ def run(folder, budget, motion_probe=None, stage_reservoir=0, proposal=None, sys
         landmarks=None
         if stage_reservoir:
             from scene_reservoir import SceneReservoir
-            landmarks=SceneReservoir(env,np.random.default_rng([origin["seed"],work,817]),stage_reservoir,systematic)
-        landmark_stride=16 if systematic else 64
+            landmarks=SceneReservoir(env,np.random.default_rng([origin["seed"],work,817]),stage_reservoir,
+                                     systematic,reward_landmarks)
         state=model.screen(env.initial)
         if guide:
             guide.restore(env.initial,state)
@@ -184,7 +188,7 @@ def run(folder, budget, motion_probe=None, stage_reservoir=0, proposal=None, sys
             point=Point(state,total,i,pose=guide.pose if guide else None,stage=stage)
             if cents:
                 archive.offer(point)
-            if landmarks and (i%landmark_stride==0 or cents>=100):
+            if landmarks and landmarks.accepts(i,1,cents):
                 landmarks.consider(point,pic)
             if i%4096==0:
                 write_json(folder/"initialization.json",dict(cold_replay_buttons=i,expected=len(tape)))
@@ -236,7 +240,7 @@ def run(folder, budget, motion_probe=None, stage_reservoir=0, proposal=None, sys
                     point=Point(state,total,length,pose=guide.pose if guide else None,stage=stage)
                     if cents:
                         archive.offer(point)
-                    if landmarks and (length//landmark_stride!=(length-used)//landmark_stride or cents>=100):
+                    if landmarks and landmarks.accepts(length,used,cents):
                         landmarks.consider(point,pic)
                     best=max(best,total)
                     if (total==best and total>=last_saved+50) or terminal:
@@ -286,6 +290,8 @@ if __name__=="__main__":
                         help="Keep this many visual landmarks at the highest number of large scalar rewards")
     parser.add_argument("--systematic-options",action="store_true",
                         help="Run short training branches that test different options from the same saved state")
+    parser.add_argument("--reward-landmarks",action="store_true",
+                        help="Offer visual landmarks immediately after any positive scalar reward")
     predictors=parser.add_mutually_exclusive_group()
     predictors.add_argument("--dreamer-proposal",type=Path,help="Use a frozen Dreamer checkpoint for half of option choices")
     predictors.add_argument("--uniform-proposal",action="store_true",help="Use uniform buttons at the same choice rate")
@@ -309,4 +315,4 @@ if __name__=="__main__":
         proposal=dict(kind="dreamer",checkpoint=args.dreamer_proposal,parent=args.proposal_parent,upstream=args.upstream)
     elif args.uniform_proposal:
         proposal=dict(kind="uniform")
-    run(folder,budget,args.motion_probe,args.stage_reservoir,proposal,args.systematic_options)
+    run(folder,budget,args.motion_probe,args.stage_reservoir,proposal,args.systematic_options,args.reward_landmarks)
