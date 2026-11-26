@@ -100,13 +100,21 @@ def main():
     parser.add_argument("--imag-length",type=int,choices=[1,15],default=15)
     parser.add_argument("--steps",type=int,default=2048)
     parser.add_argument("--envs",type=int,default=1)
+    parser.add_argument("--parallel-envs", action="store_true",
+                        help="Use the upstream parallel emulator driver")
     parser.add_argument("--seed",type=int,default=71299)
     parser.add_argument("--episode",type=int,default=8192)
     parser.add_argument("--batch",type=int,default=4)
     parser.add_argument("--length",type=int,default=16)
     parser.add_argument("--ratio",type=float,default=8.)
+    parser.add_argument("--uncapped-exploration", action="store_true",
+                        help="Continue rewarding a first cell visit after the first 50 cells in an episode")
+    parser.add_argument("--reward-replay-fraction", type=float, default=0.,
+                        help="Fraction of offline training samples drawn in proportion to peak absolute reward")
     parser.add_argument("--evaluate",type=Path,help="Evaluate frozen upstream checkpoint")
     args=parser.parse_args()
+    if not 0 <= args.reward_replay_fraction <= 1:
+        parser.error("reward replay fraction must be between zero and one")
     checkout=args.upstream.resolve()
     rev=subprocess.check_output(["git","-C",str(checkout),"rev-parse","HEAD"],text=True).strip()
     if rev!=PIN:raise ValueError(f"Expected {PIN}, found {rev}")
@@ -117,9 +125,18 @@ def main():
     import numpy as np
     from dreamerv3 import main as upstream
     from pixel_env import PixelPool
+    if args.reward_replay_fraction and not args.evaluate:
+        from reward_replay import install_reward_sampling
+        make_replay = upstream.make_replay
+        def make_reward_replay(config, folder, mode="train"):
+            replay = make_replay(config, folder, mode)
+            if mode == "train":
+                install_reward_sampling(replay, config.replay_context, args.reward_replay_fraction, args.seed)
+            return replay
+        upstream.make_replay = make_reward_replay
     class Adapter(embodied.Env):
         def __init__(self,index):
-            self.pool=PixelPool(1)
+            self.pool=PixelPool(1, args.uncapped_exploration)
             self.index=index
             self.done=True
             self.age=0
@@ -144,6 +161,9 @@ def main():
             self.done=terminal or self.age>=args.episode
             if self.done:
                 self.pool.command(0,"audit",str(args.logdir.resolve()/"external-audit"/self.session/f"env-{self.index}"))
+            elif not args.evaluate and self.age and (self.age % 8192 == 0 or reward >= 4):
+                folder = args.logdir.resolve()/"in-progress"/self.session/f"env-{self.index}"/f"step-{self.age:06}"
+                self.pool.command(0, "audit", str(folder))
             padded=np.zeros((64,64,3),np.uint8)
             padded[12:52,2:62]=pic
             return dict(image=padded,reward=np.float32(reward),is_first=np.bool_(first),
@@ -157,11 +177,19 @@ def main():
                   terminal="verified Stone Badge",truncation=args.episode,platform=args.platform,
                   imagination_horizon=args.imag_length,seed=args.seed,batch=args.batch,length=args.length,
                   sample_ratio=args.ratio,agent_size="upstream size1m",run_steps=args.steps,envs=args.envs,
-                  replay_capacity=REPLAY_CAPACITY)
+                  replay_capacity=REPLAY_CAPACITY,uncapped_exploration=args.uncapped_exploration,
+                  reward_replay_fraction=args.reward_replay_fraction,parallel_envs=args.parallel_envs)
+    provenance = log / "provenance.json"
+    if provenance.exists():
+        previous = json.loads(provenance.read_text())
+        if previous.get("uncapped_exploration", False) != args.uncapped_exploration:
+            raise ValueError("Use a new run directory when changing exploration rewards")
+        if previous.get("reward_replay_fraction", 0.) != args.reward_replay_fraction:
+            raise ValueError("Use a new run directory when changing the replay sampler")
     if args.evaluate:
         frozen, checkpoint_info = freeze_for_evaluation(args.evaluate.resolve(), log, elements)
         settings.update(checkpoint_info)
-    (log/"provenance.json").write_text(json.dumps(settings,indent=2))
+    provenance.write_text(json.dumps(settings,indent=2))
     print("Launch",settings,flush=True)
     options=["--configs","size1m","--task","emerald_pixels","--logdir",str(log),
                    "--seed",str(args.seed),"--jax.platform",args.platform,"--jax.prealloc","False",
@@ -170,7 +198,8 @@ def main():
                    "--run.train_ratio",str(args.ratio),"--agent.imag_length",str(args.imag_length),
                    "--replay.size",str(REPLAY_CAPACITY),
                    "--run.log_every","20","--run.report_every","600","--run.save_every","180",
-                   "--run.usage.nvsmi","False","--logger.outputs","jsonl","--run.debug","True"]
+                   "--run.usage.nvsmi","False","--logger.outputs","jsonl",
+                   "--run.debug",str(not args.parallel_envs)]
     if args.evaluate:
         options+=["--script","eval_only","--run.from_checkpoint",str(frozen)]
         upstream.main(options)

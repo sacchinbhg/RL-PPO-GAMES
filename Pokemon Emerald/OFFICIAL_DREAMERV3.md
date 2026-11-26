@@ -35,6 +35,15 @@ python upstream_emerald.py "${common[@]}" --seed 271340 --logdir "$run/eval-6553
 
 For the paired control, set `--imag-length 1` and use a separate run directory with the same seeds and budgets. To extend training, keep the training directory and increase `--steps` to the desired cumulative driver step. The driver includes each game's initial observation in its counter and rounds up to a whole group. Full game tapes count actual button decisions.
 
+The first training blocks used the sequential upstream driver. Add `--parallel-envs` to enable its process-based driver. Each game keeps its own emulator and input history. When comparing wall-clock training times, record the driver alongside the GPU and model configuration.
+
+## Exploration experiments
+
+Two additional 15-step runs use seed 71299, the same time limits and fresh weights. Each changes one setting. Pass the chosen option during training and evaluation and give each experiment its own directory.
+
+- `--reward-replay-fraction 0.25` changes how often the learner revisits its own experience. Once a rewarded sequence exists, on a quarter of offline training draws it samples sequences in proportion to their largest absolute scalar reward during the 32 training steps. The other draws are uniform. The upstream online queue still supplies newly collected sequences, and report batches use uniform sampling. This is a local replay extension to the pinned DreamerV3 learner. The policy still chooses every button. The result to compare is fresh-game progress.
+- `--uncapped-exploration` pays 0.02 for each distinct location cell visited during an episode. The baseline stops after 50 cells. A cell covers two by two game tiles, every cell has equal value, and repeat visits earn zero. This varies the scalar game reward while keeping ordinary upstream replay.
+
 ## Inspect the evidence
 
 - `train/metrics.jsonl` contains throughput, model losses and replay statistics. Both arms use a 131,072-transition in-memory replay limit.

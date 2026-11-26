@@ -42,7 +42,7 @@ def replay(audit,out,event,video):
             "-vf","scale=960:640:flags=neighbor","-c:v","libx264","-pix_fmt","yuv420p",
             "-crf","16","-movflags","+faststart",host_path(temp,binary)],stdin=subprocess.PIPE)
     g=Emerald(str(core),str(rom))
-    observed=Score()
+    observed=Score(evidence.get("uncapped_exploration", False))
     fight=badge_at=None
     read=lambda a,n:int.from_bytes(g.ram(a,n),"little")
     try:

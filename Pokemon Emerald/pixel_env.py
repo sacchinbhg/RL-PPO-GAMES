@@ -22,7 +22,8 @@ def game_paths():
 
 
 class Score:
-    def __init__(self):
+    def __init__(self, uncapped_exploration=False):
+        self.uncapped_exploration = uncapped_exploration
         self.paid=set()
         self.cells=set()
         self.high_level=5
@@ -54,7 +55,7 @@ class Score:
                 self.paid.add(name)
                 self.events[name]=self.decisions
                 reward+=value
-        if key[0]==5 and len(self.cells)<50 and key[1:5] not in self.cells:
+        if key[0]==5 and (self.uncapped_exploration or len(self.cells)<50) and key[1:5] not in self.cells:
             self.cells.add(key[1:5])
             reward+=.02
         if party:
@@ -65,12 +66,12 @@ class Score:
         return reward,badge
 
 
-def worker(conn,n):
+def worker(conn,n,uncapped_exploration=False):
     env=None
     try:
         env=Emerald(*game_paths())
         episode=0
-        score=Score()
+        score=Score(uncapped_exploration)
         tape=bytearray()
         conn.send(env.boot_image)
         while True:
@@ -79,7 +80,7 @@ def worker(conn,n):
             if cmd=="reset":
                 env.load(env.boot)
                 episode+=1
-                score=Score()
+                score=Score(uncapped_exploration)
                 tape=bytearray()
                 conn.send(env.boot_image)
             elif cmd=="act":
@@ -94,7 +95,8 @@ def worker(conn,n):
                 label=f"worker-{n:02}-episode-{episode:05}"
                 (target/(label+".bin")).write_bytes(tape)
                 (target/(label+".json")).write_text(json.dumps(dict(events=score.events,
-                    steps=score.decisions,first_visit_cells=len(score.cells)),indent=2))
+                    steps=score.decisions,first_visit_cells=len(score.cells),
+                    uncapped_exploration=uncapped_exploration),indent=2))
                 conn.send(True)
             else:raise ValueError(cmd)
     except BaseException:
@@ -106,13 +108,13 @@ def worker(conn,n):
 
 
 class PixelPool:
-    def __init__(self,count):
+    def __init__(self,count,uncapped_exploration=False):
         self.pipes=[]
         self.processes=[]
         ctx=mp.get_context("spawn")
         for i in range(count):
             front,back=ctx.Pipe()
-            proc=ctx.Process(target=worker,args=(back,i),daemon=True)
+            proc=ctx.Process(target=worker,args=(back,i,uncapped_exploration),daemon=True)
             proc.start()
             back.close()
             self.pipes.append(front)
