@@ -21,7 +21,7 @@ def digest(path):
 
 
 class Trajectory:
-    def __init__(self, folder):
+    def __init__(self, folder, battle_wins=None, win_cents=0):
         self.folder = folder
         self.source = json.loads((folder / "manifest.json").read_text())
         audit, = (folder / "audit").glob("*.json")
@@ -36,6 +36,21 @@ class Trajectory:
                   and self.source.get("cold_replay_rewards_verified")==len(self.tape))
         if not official and (not self.audit["uncapped_exploration"] or self.source["source_training_forks"]<1):
             raise ValueError("Expected a verified self-generated training run")
+        self.win_cents = win_cents
+        self.wins = set()
+        if bool(battle_wins) != bool(win_cents) or win_cents < 0:
+            raise ValueError("A positive battle-win reward requires a verified battle log")
+        if battle_wins:
+            from emerald import ROM_SHA1
+            outcomes = json.loads(battle_wins.read_text())
+            self.wins = set(outcomes["win_decisions"])
+            if (outcomes["training_tape"] != self.source["source_sha256"] or outcomes["decisions"] != len(self.tape)
+                    or outcomes["original_training_return_cents"] != self.source["return_cents"]
+                    or outcomes["in_game_restores"] != 0 or outcomes["frozen_evaluation_data_used"]
+                    or outcomes["rom_sha1"] != ROM_SHA1 or len(self.wins) != len(outcomes["win_decisions"])
+                    or len(self.wins) != outcomes["battle_outcomes"].get("1", 0)
+                    or any(type(i) is not int or not 1 <= i <= len(self.tape) for i in self.wins)):
+                raise ValueError("Battle wins do not match the verified training tape")
 
     def episode(self, uncapped=False, whiteout_cost_cents=0):
         """Emit (image, outgoing action, incoming reward, first, last, terminal) in driver order."""
@@ -75,6 +90,8 @@ class Trajectory:
                         cents -= 2
                 if cursor+1 in losses:
                     cents-=whiteout_cost_cents
+                if cursor+1 in self.wins:
+                    cents+=self.win_cents
                 incoming, done = cents / 100, bool(end[i])
                 cursor += 1
             previous = image[-1].copy()
@@ -111,7 +128,8 @@ def write_json(path, value):
     draft.replace(path)
 
 
-def train(datasets, parent, output, upstream_source, updates, uncapped_training=False, whiteout_cost_cents=0):
+def train(datasets, parent, output, upstream_source, updates, uncapped_training=False, whiteout_cost_cents=0,
+          battle_win_logs=None, battle_win_cents=0):
     import elements
     import jax
     from ruamel.yaml import YAML
@@ -124,7 +142,9 @@ def train(datasets, parent, output, upstream_source, updates, uncapped_training=
     sys.path.insert(0, str(upstream_source))
     from dreamerv3 import main as upstream
     from embodied.jax import internal
-    games = [Trajectory(path) for path in datasets]
+    win_files = [battle_win_logs / (json.loads((path/"manifest.json").read_text())["source_sha256"] + ".json")
+                 if battle_win_logs else None for path in datasets]
+    games = [Trajectory(path, log, battle_win_cents) for path, log in zip(datasets, win_files)]
     provenance = json.loads((parent / "provenance.json").read_text())
     uncapped = uncapped_training or provenance.get("uncapped_exploration",False)
     for game in games:
@@ -144,6 +164,9 @@ def train(datasets, parent, output, upstream_source, updates, uncapped_training=
     if whiteout_cost_cents:
         plan["whiteout_cost_cents"]=whiteout_cost_cents
         plan["verified_whiteouts_per_game"]=[len(t.source["verified_whiteouts"]) for t in games]
+    if battle_win_logs:
+        plan.update(battle_win_cents=battle_win_cents, verified_wins_per_game=[len(t.wins) for t in games],
+                    battle_log_sha256=[digest(path) for path in win_files])
     if len(games) > 1:
         common = next((i for i, choices in enumerate(zip(*(g.tape for g in games)))
                        if len(set(choices)) != 1), min(len(g.tape) for g in games))
@@ -236,6 +259,9 @@ if __name__ == "__main__":
                         help="Keep exploration rewards after the first 50 visited cells during adaptation")
     parser.add_argument("--whiteout-cost-cents", type=int, default=0,
                         help="Subtract this many reward cents once per independently replayed whiteout during training")
+    parser.add_argument("--battle-win-logs", type=Path, help="Folder containing verified battle_reward_events.py outputs")
+    parser.add_argument("--battle-win-cents", type=int, default=0, help="Add this reward once per verified battle win")
     args = parser.parse_args()
     train([p.resolve() for p in args.dataset], args.source_run.resolve(), args.output.resolve(),
-          args.upstream.resolve(), args.updates, args.uncapped_training_exploration, args.whiteout_cost_cents)
+          args.upstream.resolve(), args.updates, args.uncapped_training_exploration, args.whiteout_cost_cents,
+          args.battle_win_logs, args.battle_win_cents)

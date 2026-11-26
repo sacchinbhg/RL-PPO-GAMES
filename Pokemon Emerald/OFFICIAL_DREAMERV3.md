@@ -188,6 +188,12 @@ python calibrate_button_forecasts.py --training ALTERNATIVES --output TRAINED_CA
 
 The pinned Dreamer reward head imagines fifteen steps from a history of 33 observed images and 32 previous buttons. Each candidate receives the same eight draws of latent noise. The forecast job verifies that replacing all future pixels leaves its predictions identical. The calibration fit uses measured returns from training branches. Its `score` function compares calibrated predictions with raw imagined returns, per-button preferences and a nearest-screen baseline. Evaluate those choices on other games and report the number of positions at which a different button changes the measured return.
 
+### Test a reward for winning a battle
+
+Run `python battle_reward_events.py --dataset EARNED_GAME --output BATTLE_LOGS` for each training game. The independent replay checks the input history, game progress and ordinary reward, then records each completed battle's outcome. It follows the game's transition from an unresolved battle to a reported win.
+
+To add 0.25 only at verified victories, pass `--battle-win-logs BATTLE_LOGS --battle-win-cents 25` to `train_earned_dreamer.py`. Use the same datasets, parent weights, optimizer updates, fresh-game seeds and button budgets for the control. In two 44,250-button training games, verification found five victories per game. The input comparison checked that every image, button and episode boundary matched and that only those five scalar rewards changed in each game.
+
 ### Resuming replay on a memory-limited WSL machine
 
 Set `EMERALD_REPLAY_MMAP_DIR` to a directory on a disk-backed Linux filesystem before launching the training adapter. Large image and recurrent-state arrays then use temporary memory-mapped files. The loader admits two simultaneous chunk operations and raises any read failure. The run writes its restored filenames and sequence count to `file-backed-replay-restore.json`.
