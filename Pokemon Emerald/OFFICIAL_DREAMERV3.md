@@ -158,6 +158,8 @@ The search logs the original discovery cost, the cost of replaying its input his
 
 Add `--reward-sweep` and use a new output directory to give each rewarded snapshot a turn with every single button before trying longer sequences. This variant keeps only rewarded snapshots and spends one in sixteen branches on a 32-decision continuation from its learned screen-transition table. Compare it with the ordinary search at the same seed and emulator budget.
 
+Add `--individual-tile-rewards` to test a finer exploration signal. The usual bonus pays 0.02 the first time the search visits a two-by-two block. The finer signal pays 0.005 for each individual tile in that block, once across all training branches. Both signals pay 0.02 for covering the whole block. The saved game audits retain the original score. The controller sees pixels and scalar rewards.
+
 For reporting, the emulator saves the complete input prefix the first time a trainer opponent appears in battle. These files are in `first-trainers/`. The controller receives its ordinary observation and reward. Replaying an encounter from boot establishes which trainer appeared. A later battle outcome is needed to verify a win.
 
 ### Can Dreamer extend a route that memory can repeat?
@@ -185,3 +187,9 @@ python calibrate_button_forecasts.py --training ALTERNATIVES --output TRAINED_CA
 ```
 
 The pinned Dreamer reward head imagines fifteen steps from a history of 33 observed images and 32 previous buttons. Each candidate receives the same eight draws of latent noise. The forecast job verifies that replacing all future pixels leaves its predictions identical. The calibration fit uses measured returns from training branches. Its `score` function compares calibrated predictions with raw imagined returns, per-button preferences and a nearest-screen baseline. Evaluate those choices on other games and report the number of positions at which a different button changes the measured return.
+
+### Resuming replay on a memory-limited WSL machine
+
+Set `EMERALD_REPLAY_MMAP_DIR` to a directory on a disk-backed Linux filesystem before launching the training adapter. Large image and recurrent-state arrays then use temporary memory-mapped files. The loader admits two simultaneous chunk operations and raises any read failure. The run writes its restored filenames and sequence count to `file-backed-replay-restore.json`.
+
+On the 131,072-sequence Emerald replay, the adapter restored all 144 selected chunks. A comparison with the saved NumPy arrays checked 1,959,147,688 bytes, including shapes, dtypes and values. A separate fixture checked appends, updates, saving, reloading and error handling. The WSL GPU learner subsequently trained from that checkpoint. [Restore verification](results/file-backed-replay.json)

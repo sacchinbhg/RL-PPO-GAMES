@@ -1,0 +1,84 @@
+{
+  "cases": [
+    {
+      "cut": 4096,
+      "tape": "349260140551157568e6132e1666737911b63d534d02f03b5c8555b957db5366",
+      "stock": {
+        "cpu_seconds": 0.921875,
+        "full_frames": 385,
+        "sha256": "eea4ec785153334639f31a8ade368ad3ea0799f2d973ec148b046cc019cb9db0"
+      },
+      "final_frame_only": {
+        "cpu_seconds": 0.125,
+        "full_frames": 385,
+        "sha256": "eea4ec785153334639f31a8ade368ad3ea0799f2d973ec148b046cc019cb9db0"
+      },
+      "equal": true
+    },
+    {
+      "cut": 16384,
+      "tape": "349260140551157568e6132e1666737911b63d534d02f03b5c8555b957db5366",
+      "final_frame_only": {
+        "cpu_seconds": 0.453125,
+        "full_frames": 385,
+        "sha256": "9ce7dbd3410583795e0a5eb15300980770dc59e261b9713a0bf160ef38747b89"
+      },
+      "stock": {
+        "cpu_seconds": 2.984375,
+        "full_frames": 385,
+        "sha256": "9ce7dbd3410583795e0a5eb15300980770dc59e261b9713a0bf160ef38747b89"
+      },
+      "equal": true
+    },
+    {
+      "cut": 44393,
+      "tape": "349260140551157568e6132e1666737911b63d534d02f03b5c8555b957db5366",
+      "stock": {
+        "cpu_seconds": 7.8125,
+        "full_frames": 385,
+        "sha256": "64b34b4abf16d431296388c5de4c3df5240d08d233cd9aedeea33ec1cec120f8"
+      },
+      "final_frame_only": {
+        "cpu_seconds": 1.125,
+        "full_frames": 385,
+        "sha256": "64b34b4abf16d431296388c5de4c3df5240d08d233cd9aedeea33ec1cec120f8"
+      },
+      "equal": true
+    },
+    {
+      "cut": 8192,
+      "tape": "7682b2f1574d57d3a491d0fb20ae0e9f65888b9e98f712216773d5c9b20c3c56",
+      "final_frame_only": {
+        "cpu_seconds": 0.234375,
+        "full_frames": 385,
+        "sha256": "a019c088c8c75472d436a6c50d463ee0127f96ca1389da0b189e46c3484f9cdc"
+      },
+      "stock": {
+        "cpu_seconds": 1.390625,
+        "full_frames": 385,
+        "sha256": "a019c088c8c75472d436a6c50d463ee0127f96ca1389da0b189e46c3484f9cdc"
+      },
+      "equal": true
+    },
+    {
+      "cut": 32768,
+      "tape": "7682b2f1574d57d3a491d0fb20ae0e9f65888b9e98f712216773d5c9b20c3c56",
+      "stock": {
+        "cpu_seconds": 5.734375,
+        "full_frames": 385,
+        "sha256": "89779a22aeceff133e88b9bd57ed270a4dc005e8cb8a7838c51b1c3393792c1f"
+      },
+      "final_frame_only": {
+        "cpu_seconds": 0.890625,
+        "full_frames": 385,
+        "sha256": "89779a22aeceff133e88b9bd57ed270a4dc005e8cb8a7838c51b1c3393792c1f"
+      },
+      "equal": true
+    }
+  ],
+  "native_engine_sha256": "997701e27f90cc18daec40e12f082989d56772b5cc5f40417881e013cff79351",
+  "all_rgb_frames_and_observed_states_match": true,
+  "cpu_speedup": 6.662983425414365,
+  "hardware_frames_per_button": 24,
+  "eligible_for_native_training": true
+}

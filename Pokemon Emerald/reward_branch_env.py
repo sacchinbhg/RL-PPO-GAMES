@@ -3,6 +3,7 @@ import copy
 import json
 import multiprocessing as mp
 from pathlib import Path
+import struct
 import traceback
 
 
@@ -20,7 +21,20 @@ class VisitReward:
         return cents
 
 
-def _worker(pipe, map_audits=None, log_whiteouts=False, shared_visit_reward=False, trainer_audits=None):
+class TileVisitReward:
+    def __init__(self):
+        self.paid = set()
+
+    def adjust(self, cents, tile, new_coarse_in_game):
+        cents -= 2 * int(new_coarse_in_game)
+        if tile is not None and tile not in self.paid:
+            self.paid.add(tile)
+            # The four tiles in a complete 2x2 block collectively pay the original two cents.
+            cents += .5
+        return cents
+
+
+def _worker(pipe, map_audits=None, log_whiteouts=False, shared_visit_reward=False, trainer_audits=None, tile_visit_reward=False):
     from emerald import Emerald
     from pixel_env import Score, WhiteoutLog, first_map_audit, game_paths
 
@@ -29,6 +43,7 @@ def _worker(pipe, map_audits=None, log_whiteouts=False, shared_visit_reward=Fals
         game.load(game.boot)
         score = Score(uncapped_exploration=True)
         visit_reward = VisitReward() if shared_visit_reward else None
+        tile_reward = TileVisitReward() if tile_visit_reward else None
         picture, tape, total, terminal = game.boot_image, bytearray(), 0, False
         slots = {}
         losses=WhiteoutLog() if log_whiteouts else None
@@ -46,6 +61,8 @@ def _worker(pipe, map_audits=None, log_whiteouts=False, shared_visit_reward=Fals
                 report["whiteouts"]=losses.events
             if visit_reward is not None:
                 report["distinct_cells_across_training"]=len(visit_reward.paid)
+            if tile_reward is not None:
+                report["distinct_tiles_across_training"]=len(tile_reward.paid)
             (target / "game.json").write_text(json.dumps(report, indent=2))
         pipe.send(picture)
         while True:
@@ -64,8 +81,18 @@ def _worker(pipe, map_audits=None, log_whiteouts=False, shared_visit_reward=Fals
                     amount, terminal = score.read(game, descriptor)
                     cents = round(100 * amount)
                     original_reward += cents
+                    new_coarse = len(score.cells) > cells_before
                     if visit_reward is not None:
-                        cents = visit_reward.adjust(cents, descriptor[1:5], len(score.cells) > cells_before)
+                        coarse_payment = visit_reward.adjust(cents, descriptor[1:5], new_coarse)
+                        if tile_reward is None:
+                            cents = coarse_payment
+                    if tile_reward is not None:
+                        tile = None
+                        if descriptor[0] == 5 and game.verified_story(descriptor) is not None:
+                            block = int.from_bytes(game.ram(0x03005D8C, 4), "little")
+                            x, y = struct.unpack("<hh", game.ram(block, 4))
+                            tile = (*descriptor[1:3], x, y)
+                        cents = tile_reward.adjust(cents, tile, new_coarse)
                     reward += cents
                     tape.append(button)
                     if losses is not None:
@@ -110,10 +137,10 @@ def _worker(pipe, map_audits=None, log_whiteouts=False, shared_visit_reward=Fals
 
 
 class ForkEnv:
-    def __init__(self, map_audits=None, log_whiteouts=False, shared_visit_reward=False, trainer_audits=None):
+    def __init__(self, map_audits=None, log_whiteouts=False, shared_visit_reward=False, trainer_audits=None, tile_visit_reward=False):
         ctx = mp.get_context("spawn")
         self.pipe, back = ctx.Pipe()
-        self.process = ctx.Process(target=_worker, args=(back,map_audits,log_whiteouts,shared_visit_reward,trainer_audits), daemon=True)
+        self.process = ctx.Process(target=_worker, args=(back,map_audits,log_whiteouts,shared_visit_reward,trainer_audits,tile_visit_reward), daemon=True)
         self.process.start()
         back.close()
         self.initial = self.receive()

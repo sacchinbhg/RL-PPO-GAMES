@@ -185,6 +185,9 @@ def main():
     import numpy as np
     from dreamerv3 import main as upstream
     from pixel_env import PixelPool
+    if not args.evaluate and os.environ.get("EMERALD_REPLAY_MMAP_DIR"):
+        from file_backed_replay import install
+        install(os.environ["EMERALD_REPLAY_MMAP_DIR"], Path(args.logdir)/"file-backed-replay-restore.json")
     if args.screen_exploration_envs:
         from screen_explorer import install_screen_collection
         make_agent = upstream.make_agent

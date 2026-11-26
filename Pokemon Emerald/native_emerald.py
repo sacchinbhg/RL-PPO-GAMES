@@ -8,6 +8,8 @@ import numpy as np
 
 from emerald import BUTTONS, verify_rom
 
+NATIVE_KEYS = (0, 1, 2, 8, 64, 128, 32, 16, 4)
+
 
 class NativeEmerald:
     def __init__(self, core, rom):
@@ -57,13 +59,23 @@ class NativeEmerald:
     def save(self):
         return self.prefix + struct.pack("<I", len(self.actions)) + self.actions
 
-    def load(self, state):
+    def load(self, state, *, render_intermediate=True):
         if not state.startswith(self.prefix) or len(state) < len(self.prefix) + 4:
             raise ValueError("Archive belongs to a different engine or build")
         size, = struct.unpack_from("<I", state, len(self.prefix))
         actions = state[len(self.prefix) + 4:]
-        if len(actions) != size or not self.lib.rl_replay(actions, size):
+        if len(actions) != size:
             raise ValueError("Could not reproduce native Emerald archive state")
+        if render_intermediate:
+            if not self.lib.rl_replay(actions, size):
+                raise ValueError("Could not reproduce native Emerald archive state")
+        else:
+            if any(b >= len(NATIVE_KEYS) for b in actions) or not self.lib.rl_reset():
+                raise ValueError("Could not reproduce native Emerald archive state")
+            for b in actions:
+                self.lib.rl_frames(NATIVE_KEYS[b], 14)
+                self.lib.rl_frames(0, 10)
+            self.lib.rl_render()
         self.actions = bytearray(actions)
 
     def close(self):

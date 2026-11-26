@@ -1,0 +1,11 @@
+{
+  "selected_historical_files": 144,
+  "retained_historical_files": 144,
+  "retained_sequences": 131072,
+  "compared_bytes": 1959147688,
+  "file_backed_bytes": 1955065856,
+  "all_retained_arrays_identical": true,
+  "append_update_save_reload": true,
+  "unreadable_chunk_stops_restore": true,
+  "peak_process_kib": 2303752
+}

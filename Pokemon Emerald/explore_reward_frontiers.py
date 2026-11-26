@@ -90,7 +90,7 @@ class Frontier:
         return node, frame, option
 
 
-def run(folder, arm, record, probe, steps, seed, capacity, sweep=False):
+def run(folder, arm, record, probe, steps, seed, capacity, sweep=False, tile_visits=False):
     arm = arm.resolve()
     settings = json.loads((arm / "settings.json").read_text())
     discovery = json.loads(record.read_text())
@@ -114,6 +114,8 @@ def run(folder, arm, record, probe, steps, seed, capacity, sweep=False):
     if sweep:
         config.update(reward_sweep=True, appearance_slots=0, first_pass="try every single button per reward state",
                       model_continuation="one in sixteen branches receives 32 empirical transition-model decisions")
+    if tile_visits:
+        config.update(visit_reward="0.005 per newly observed individual tile across the training search")
     setup = folder / "settings.json"
     if setup.exists() and json.loads(setup.read_text()) != config:
         raise ValueError("Another experiment already owns this directory")
@@ -124,7 +126,8 @@ def run(folder, arm, record, probe, steps, seed, capacity, sweep=False):
                inherited_training_buttons=discovery["work"], cold_replay_buttons=len(tape)))
     rng = np.random.default_rng(seed)
     behavior = ScreenExplorer(np.random.SeedSequence([seed, 1]))
-    env = ForkEnv(folder / "first-maps", shared_visit_reward=True, trainer_audits=folder / "first-trainers")
+    env = ForkEnv(folder / "first-maps", shared_visit_reward=True, trainer_audits=folder / "first-trainers",
+                  tile_visit_reward=tile_visits)
     try:
         archive = Frontier(env, rng, motions, capacity, sweep)
         frame = env.initial
@@ -143,10 +146,16 @@ def run(folder, arm, record, probe, steps, seed, capacity, sweep=False):
                 archive.store(frame, stage, i, 0, "reward")
             if i % 4096 == 0:
                 write_json(folder / "initialization.json", dict(cold_replay_buttons=i, expected=len(tape)))
-        if done or warm_total != discovery["return_cents"] or state.hex() != discovery["screen"]:
+        original_total = warm_total
+        if tile_visits:
+            env.command("audit", str(folder / "warmup-original"))
+            audited = json.loads((folder / "warmup-original/game.json").read_text())
+            original_total = audited["return_cents"]
+        if done or original_total != discovery["return_cents"] or state.hex() != discovery["screen"]:
             raise ValueError("The self-earned cold-boot history could not be reproduced")
         write_json(folder / "initialization.json", dict(cold_replay_buttons=len(tape), matched_image_and_reward=True,
-                   surviving_rewarded_states=len(archive.slots), source_sha256=discovery["tape_sha256"]))
+                   surviving_rewarded_states=len(archive.slots), source_sha256=discovery["tape_sha256"],
+                   original_return_cents=original_total, training_return_cents=warm_total))
         work = branches = 0
         high_stage = stage
         best = None
@@ -227,5 +236,8 @@ if __name__ == "__main__":
     parser.add_argument("--seed", type=int, default=173741)
     parser.add_argument("--reward-sweep", action="store_true",
                         help="Keep each newly rewarded snapshot and test all nine single buttons before longer options")
+    parser.add_argument("--individual-tile-rewards", action="store_true",
+                        help="During search, split each 2x2 block's potential 0.02 reward into 0.005 per visited tile")
     args = parser.parse_args()
-    run(args.output, args.source, args.record, args.motion, args.steps, args.seed, args.capacity, args.reward_sweep)
+    run(args.output, args.source, args.record, args.motion, args.steps, args.seed, args.capacity,
+        args.reward_sweep, args.individual_tile_rewards)
