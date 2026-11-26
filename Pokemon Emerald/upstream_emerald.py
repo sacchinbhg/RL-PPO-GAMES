@@ -136,6 +136,8 @@ def main():
                         help="Upstream imagined actor loss coefficient for action entropy")
     parser.add_argument("--steps",type=int,default=2048)
     parser.add_argument("--envs",type=int,default=1)
+    parser.add_argument("--screen-exploration-envs", type=int, default=0,
+                        help="Collect training actions from an online pixel transition model on these workers")
     parser.add_argument("--parallel-envs", action="store_true",
                         help="Use the upstream parallel emulator driver")
     parser.add_argument("--seed",type=int,default=71299)
@@ -151,6 +153,10 @@ def main():
     parser.add_argument("--retain-reward-windows", action="store_true",
                         help="Keep bounded self-earned reward sequences for use after FIFO eviction")
     args=parser.parse_args()
+    if not 0 <= args.screen_exploration_envs <= args.envs:
+        parser.error("screen exploration worker count must be between zero and the number of environments")
+    if args.evaluate and args.screen_exploration_envs:
+        parser.error("frozen evaluations require zero screen exploration workers")
     args.discount_horizon = resolve_discount_horizon(args.discount_horizon, args.evaluate)
     args.actor_entropy = checkpoint_setting(args.actor_entropy, args.evaluate, "actor_entropy", 0.0003)
     if args.discount_horizon < 2:
@@ -171,6 +177,13 @@ def main():
     import numpy as np
     from dreamerv3 import main as upstream
     from pixel_env import PixelPool
+    if args.screen_exploration_envs:
+        from screen_explorer import install_screen_collection
+        make_agent = upstream.make_agent
+        def make_collecting_agent(config):
+            agent = make_agent(config)
+            return install_screen_collection(agent, args.screen_exploration_envs, args.seed)
+        upstream.make_agent = make_collecting_agent
     if args.reward_replay_fraction and not args.evaluate:
         from reward_replay import install_reward_sampling
         make_replay = upstream.make_replay
@@ -229,9 +242,12 @@ def main():
                   replay_capacity=REPLAY_CAPACITY,uncapped_exploration=args.uncapped_exploration,
                   reward_replay_fraction=args.reward_replay_fraction,retain_reward_windows=args.retain_reward_windows,
                   parallel_envs=args.parallel_envs)
+    settings["screen_exploration_envs"] = args.screen_exploration_envs
     provenance = log / "provenance.json"
     if provenance.exists():
         previous = json.loads(provenance.read_text())
+        if previous.get("screen_exploration_envs", 0) != args.screen_exploration_envs:
+            raise ValueError("Use a separate training directory when changing screen exploration workers")
         if previous.get("discount_horizon", 333) != args.discount_horizon:
             raise ValueError("Use a new run directory when changing the discount horizon")
         if previous.get("actor_entropy", 0.0003) != args.actor_entropy:

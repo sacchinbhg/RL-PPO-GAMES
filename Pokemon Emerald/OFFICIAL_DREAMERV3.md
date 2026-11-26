@@ -39,6 +39,10 @@ The first training blocks used the sequential upstream driver. Add `--parallel-e
 
 ## Exploration experiments
 
+With four environments, `--screen-exploration-envs 2` gives the first two training games to an online pixel explorer. It estimates which screens each button leads to and favors unfamiliar outcomes and past scalar rewards. Its memory starts empty at each fresh boot. The other two games use the upstream Dreamer actor. The official learner trains its world model and imagined actor from the real actions taken in all four games. The collector has access to RGB, scalar rewards and episode boundaries. Training seeds are separate from the discovery and evaluation seeds.
+
+For a matched comparison, resume two copies of the same ordinary learner and replay, use the same episode length and interaction budget, and enable the collector on just one copy. For frozen gameplay evaluation omit the collection option on both arms. The evaluator enforces zero exploration workers. A training milestone on a screen-controlled worker establishes that the learner had access to that experience. A fresh evaluation establishes how far the neural policy gets on its own.
+
 Additional 15-step runs use seed 71299 and fresh weights. Give each experiment its own directory and pass the chosen option during training and evaluation. Compare frozen policies at the same decision cutoff.
 
 - `--reward-replay-fraction 0.25` changes how often the learner revisits its own experience. Once a rewarded sequence exists, on a quarter of offline training draws it samples sequences in proportion to their largest absolute scalar reward during the 32 training steps. The other draws are uniform. The upstream online queue still supplies newly collected sequences, and report batches use uniform sampling. This is a local replay extension to the pinned DreamerV3 learner. The policy still chooses every button. The result to compare is fresh-game progress.
