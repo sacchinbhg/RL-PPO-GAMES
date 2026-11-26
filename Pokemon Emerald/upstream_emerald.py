@@ -2,6 +2,7 @@
 import argparse
 import hashlib
 import json
+import math
 import os
 from pathlib import Path
 import shutil
@@ -26,18 +27,22 @@ def skip_json_episode_video(elements):
     return patch.object(elements.Agg, "add", add_metric)
 
 
-def resolve_discount_horizon(requested, checkpoint):
+def checkpoint_setting(requested, checkpoint, name, default):
     if checkpoint:
         folder = checkpoint.resolve().parent
         if folder.name == "ckpt":
             folder = folder.parent
         provenance = folder / "provenance.json"
         if provenance.is_file():
-            trained = json.loads(provenance.read_text()).get("discount_horizon", 333)
+            trained = json.loads(provenance.read_text()).get(name, default)
             if requested is not None and requested != trained:
-                raise ValueError(f"Checkpoint was trained with discount horizon {trained}")
+                raise ValueError(f"Checkpoint was trained with {name}={trained}")
             return trained
-    return 333 if requested is None else requested
+    return default if requested is None else requested
+
+
+def resolve_discount_horizon(requested, checkpoint):
+    return checkpoint_setting(requested, checkpoint, "discount_horizon", 333)
 
 
 def freeze_for_evaluation(checkpoint, directory, elements):
@@ -127,6 +132,8 @@ def main():
     parser.add_argument("--imag-length",type=int,choices=[1,15],default=15)
     parser.add_argument("--discount-horizon", type=int,
                         help="Upstream agent.horizon for discounting future rewards")
+    parser.add_argument("--actor-entropy", type=float,
+                        help="Upstream imagined actor loss coefficient for action entropy")
     parser.add_argument("--steps",type=int,default=2048)
     parser.add_argument("--envs",type=int,default=1)
     parser.add_argument("--parallel-envs", action="store_true",
@@ -145,8 +152,11 @@ def main():
                         help="Keep bounded self-earned reward sequences for use after FIFO eviction")
     args=parser.parse_args()
     args.discount_horizon = resolve_discount_horizon(args.discount_horizon, args.evaluate)
+    args.actor_entropy = checkpoint_setting(args.actor_entropy, args.evaluate, "actor_entropy", 0.0003)
     if args.discount_horizon < 2:
         parser.error("discount horizon must be at least 2")
+    if not math.isfinite(args.actor_entropy) or args.actor_entropy < 0:
+        parser.error("actor entropy must be a finite, nonnegative coefficient")
     if not 0 <= args.reward_replay_fraction <= 1:
         parser.error("reward replay fraction must be between zero and one")
     if args.retain_reward_windows and not args.reward_replay_fraction:
@@ -213,6 +223,7 @@ def main():
     settings=dict(upstream_revision=rev,upstream_diff="clean",adapter="Emerald RGB + scalar reward",
                   terminal="verified Stone Badge",truncation=args.episode,platform=args.platform,
                   imagination_horizon=args.imag_length,discount_horizon=args.discount_horizon,
+                  actor_entropy=args.actor_entropy,
                   seed=args.seed,batch=args.batch,length=args.length,
                   sample_ratio=args.ratio,agent_size="upstream size1m",run_steps=args.steps,envs=args.envs,
                   replay_capacity=REPLAY_CAPACITY,uncapped_exploration=args.uncapped_exploration,
@@ -223,6 +234,8 @@ def main():
         previous = json.loads(provenance.read_text())
         if previous.get("discount_horizon", 333) != args.discount_horizon:
             raise ValueError("Use a new run directory when changing the discount horizon")
+        if previous.get("actor_entropy", 0.0003) != args.actor_entropy:
+            raise ValueError("Use a separate training directory when changing the actor entropy coefficient")
         if previous.get("uncapped_exploration", False) != args.uncapped_exploration:
             raise ValueError("Use a new run directory when changing exploration rewards")
         if previous.get("reward_replay_fraction", 0.) != args.reward_replay_fraction:
@@ -240,6 +253,7 @@ def main():
                    "--batch_size",str(args.batch),"--batch_length",str(args.length),"--report_length",str(args.length),
                    "--run.train_ratio",str(args.ratio),"--agent.imag_length",str(args.imag_length),
                    "--agent.horizon",str(args.discount_horizon),
+                   "--agent.imag_loss.actent",str(args.actor_entropy),
                    "--replay.size",str(REPLAY_CAPACITY),
                    "--run.log_every","20","--run.report_every","600","--run.save_every","180",
                    "--run.usage.nvsmi","False","--logger.outputs","jsonl",

@@ -48,6 +48,8 @@ Additional 15-step runs use seed 71299 and fresh weights. Give each experiment i
 
 Run `PYTHONPATH=upstream-emerald python -m unittest test_reward_replay` to check retention, checkpoint restoration and sampling boundaries against the pinned replay implementation.
 
+To test how strongly the imagined actor is encouraged to explore, set `--actor-entropy 0.003` in a separate training directory. The pinned release defaults to 0.0003. This option changes the official `agent.imag_loss.actent` coefficient. It assigns the same entropy incentive to the nine buttons. Evaluate the trained checkpoint from boot using its ordinary sampled policy. The evaluation records the coefficient used in training. [Official imagined actor loss](https://github.com/danijar/dreamerv3/blob/e01491fad6434b2245a3b8ca201dd7faedcc458c/dreamerv3/agent.py#L411-L415)
+
 ## Inspect the evidence
 
 - `train/metrics.jsonl` contains throughput, model losses and replay statistics. Both arms use a 131,072-transition in-memory replay limit.
