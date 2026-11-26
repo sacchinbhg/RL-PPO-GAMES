@@ -13,6 +13,20 @@ PIN="e01491fad6434b2245a3b8ca201dd7faedcc458c"
 REPLAY_CAPACITY = 131_072
 
 
+def resolve_discount_horizon(requested, checkpoint):
+    if checkpoint:
+        folder = checkpoint.resolve().parent
+        if folder.name == "ckpt":
+            folder = folder.parent
+        provenance = folder / "provenance.json"
+        if provenance.is_file():
+            trained = json.loads(provenance.read_text()).get("discount_horizon", 333)
+            if requested is not None and requested != trained:
+                raise ValueError(f"Checkpoint was trained with discount horizon {trained}")
+            return trained
+    return 333 if requested is None else requested
+
+
 def freeze_for_evaluation(checkpoint, directory, elements):
     """Keep the evaluated weights after upstream rotates its training checkpoint."""
     counter = elements.Counter()
@@ -98,6 +112,8 @@ def main():
     parser.add_argument("--logdir",type=Path,required=True)
     parser.add_argument("--platform",choices=["cpu","cuda"],default="cuda")
     parser.add_argument("--imag-length",type=int,choices=[1,15],default=15)
+    parser.add_argument("--discount-horizon", type=int,
+                        help="Upstream agent.horizon for discounting future rewards")
     parser.add_argument("--steps",type=int,default=2048)
     parser.add_argument("--envs",type=int,default=1)
     parser.add_argument("--parallel-envs", action="store_true",
@@ -113,6 +129,9 @@ def main():
                         help="Fraction of offline training samples drawn in proportion to peak absolute reward")
     parser.add_argument("--evaluate",type=Path,help="Evaluate frozen upstream checkpoint")
     args=parser.parse_args()
+    args.discount_horizon = resolve_discount_horizon(args.discount_horizon, args.evaluate)
+    if args.discount_horizon < 2:
+        parser.error("discount horizon must be at least 2")
     if not 0 <= args.reward_replay_fraction <= 1:
         parser.error("reward replay fraction must be between zero and one")
     checkout=args.upstream.resolve()
@@ -175,13 +194,16 @@ def main():
     log.mkdir(parents=True,exist_ok=True)
     settings=dict(upstream_revision=rev,upstream_diff="clean",adapter="Emerald RGB + scalar reward",
                   terminal="verified Stone Badge",truncation=args.episode,platform=args.platform,
-                  imagination_horizon=args.imag_length,seed=args.seed,batch=args.batch,length=args.length,
+                  imagination_horizon=args.imag_length,discount_horizon=args.discount_horizon,
+                  seed=args.seed,batch=args.batch,length=args.length,
                   sample_ratio=args.ratio,agent_size="upstream size1m",run_steps=args.steps,envs=args.envs,
                   replay_capacity=REPLAY_CAPACITY,uncapped_exploration=args.uncapped_exploration,
                   reward_replay_fraction=args.reward_replay_fraction,parallel_envs=args.parallel_envs)
     provenance = log / "provenance.json"
     if provenance.exists():
         previous = json.loads(provenance.read_text())
+        if previous.get("discount_horizon", 333) != args.discount_horizon:
+            raise ValueError("Use a new run directory when changing the discount horizon")
         if previous.get("uncapped_exploration", False) != args.uncapped_exploration:
             raise ValueError("Use a new run directory when changing exploration rewards")
         if previous.get("reward_replay_fraction", 0.) != args.reward_replay_fraction:
@@ -196,6 +218,7 @@ def main():
                    "--jax.compute_dtype","float32","--run.steps",str(args.steps),"--run.envs",str(args.envs),
                    "--batch_size",str(args.batch),"--batch_length",str(args.length),"--report_length",str(args.length),
                    "--run.train_ratio",str(args.ratio),"--agent.imag_length",str(args.imag_length),
+                   "--agent.horizon",str(args.discount_horizon),
                    "--replay.size",str(REPLAY_CAPACITY),
                    "--run.log_every","20","--run.report_every","600","--run.save_every","180",
                    "--run.usage.nvsmi","False","--logger.outputs","jsonl",

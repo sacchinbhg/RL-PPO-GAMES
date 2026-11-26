@@ -39,10 +39,11 @@ The first training blocks used the sequential upstream driver. Add `--parallel-e
 
 ## Exploration experiments
 
-Two additional 15-step runs use seed 71299, the same time limits and fresh weights. Each changes one setting. Pass the chosen option during training and evaluation and give each experiment its own directory.
+Additional 15-step runs use seed 71299 and fresh weights. Give each experiment its own directory and pass the chosen option during training and evaluation. Compare frozen policies at the same decision cutoff.
 
 - `--reward-replay-fraction 0.25` changes how often the learner revisits its own experience. Once a rewarded sequence exists, on a quarter of offline training draws it samples sequences in proportion to their largest absolute scalar reward during the 32 training steps. The other draws are uniform. The upstream online queue still supplies newly collected sequences, and report batches use uniform sampling. This is a local replay extension to the pinned DreamerV3 learner. The policy still chooses every button. The result to compare is fresh-game progress.
 - `--uncapped-exploration` pays 0.02 for each distinct location cell visited during an episode. The baseline stops after 50 cells. A cell covers two by two game tiles, every cell has equal value, and repeat visits earn zero. This varies the scalar game reward while keeping ordinary upstream replay.
+- `--discount-horizon 4096` changes the official learner's reward discount from `1 - 1/333` to `1 - 1/4096`. Use ordinary replay and 15 imagined steps in both arms. At 65,536 training steps, evaluate each for four fresh games of 16,384 button decisions. The change gives distant rewards more weight in the return. The emulator observations and game rewards are identical.
 
 ## Inspect the evidence
 
