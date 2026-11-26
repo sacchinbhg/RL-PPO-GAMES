@@ -54,13 +54,19 @@ Run `PYTHONPATH=upstream-emerald python -m unittest test_reward_replay` to check
 
 To test how strongly the imagined actor is encouraged to explore, set `--actor-entropy 0.003` in a separate training directory. The pinned release defaults to 0.0003. This option changes the official `agent.imag_loss.actent` coefficient. It assigns the same entropy incentive to the nine buttons. Evaluate the trained checkpoint from boot using its ordinary sampled policy. The evaluation records the coefficient used in training. [Official imagined actor loss](https://github.com/danijar/dreamerv3/blob/e01491fad6434b2245a3b8ca201dd7faedcc458c/dreamerv3/agent.py#L411-L415)
 
-## Inspect the evidence
-
-### Self-generated training forks
+## Self-generated training forks
 
 `python reward_branch_search.py --logdir runs/reward-forks --steps 5000000` starts a separate collector from the original boot. Its pixel transition model chooses a button and explores different hold durations. It can return to points in its own training game using opaque emulator slots. It selects those points by accumulated scalar reward, screen diversity and how often it has tried them. The environment pays the existing story and level rewards and 0.02 for every first cell visit within a path. Restoring a point also restores the rewards already collected on that path. The controller receives pixels, payoffs and the episode boundary. The argument to `--steps` counts newly simulated button decisions over every branch.
 
 `python export_reward_branch.py runs/reward-forks runs/reward-forks/verified-training-tapes` plays the current best training tape from boot in an independent emulator. It checks the exact buttons, milestone times, visited-cell count and total reward. Each exported chunk contains the RGB frame before every action, the action, the following frame and the resulting scalar reward. The collector and exporter are separate from the official Dreamer training and its frozen evaluation. A replay verifies a discovery. Fresh closed-loop play by a frozen policy measures what the policy learned.
+
+To test whether an earned route can teach Dreamer, use `fit_branch_actor.py` in the WSL CUDA environment. Pass the pinned checkout to `--upstream`, the verified dataset directory to `--dataset`, an official frozen evaluation directory to `--source-run`, and a new directory to `--output`. The script feeds each frame and the previous executed button through the upstream encoder and recurrent state. It fits the final action-logit kernel and bias and checks exactly which parameters changed. The fitted checkpoint is for gameplay evaluation. Its source checkpoint supplies the world model. Blocks withheld from the same training trajectory select the amount of fitting. Fresh games provide the gameplay comparison.
+
+Use `python play_frozen_dreamer.py CHECKPOINT SOURCE_RUN OUTPUT --upstream UPSTREAM --limit 65536` to play four fresh games on the GPU. The process loads the upstream inference modules and keeps each game's recurrent state. It executes each button in the original ROM. To validate an unchanged policy against historical gameplay, add `--reference EXISTING_EVALUATION`. The runner checks each button only after the policy chooses it. It stops on a mismatch. A Stone Badge triggers a second full replay and battle and flag verification.
+
+The optional training search argument `--unrewarded-screen-slots 160` keeps visually distinct points after zero-reward actions. This lets a new training attempt start partway across an already rewarded area. These slots use the same RGB observations and scalar-return history as the rest of the collector.
+
+## Inspect the evidence
 
 - `train/metrics.jsonl` contains throughput, model losses and replay statistics. Both arms use a 131,072-transition in-memory replay limit.
 - `train/world-model-predictions/` stores the official model's prediction grids as compressed NumPy arrays. Each column is a sampled training sequence. Rows show game pixels, predicted pixels, and signed error. Green borders mark the observed part. Red borders mark open-loop prediction conditioned on recorded buttons.

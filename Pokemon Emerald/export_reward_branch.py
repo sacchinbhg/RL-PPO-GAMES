@@ -9,9 +9,12 @@ import numpy as np
 from pixel_env import PixelPool
 
 
-def export(run, out):
+def export(run, out, record_path=None):
     settings = json.loads((run / "settings.json").read_text())
-    record = json.loads((run / "best.json").read_text())
+    record_path = record_path or run / "best.json"
+    if not record_path.resolve().is_relative_to(run.resolve()):
+        raise ValueError("Discovery record outside the training run")
+    record = json.loads(record_path.read_text())
     if not (settings["training_forks"] and record["training_only"] and not settings["receives_saves_from_other_runs"]):
         raise ValueError("Expected a self-generated training branch")
     source = (run / record["audit"]).resolve()
@@ -68,5 +71,6 @@ if __name__ == "__main__":
     p = argparse.ArgumentParser()
     p.add_argument("training_run", type=Path)
     p.add_argument("output", type=Path)
+    p.add_argument("--record", type=Path, help="Export a particular preserved discovery from this training run")
     args = p.parse_args()
-    print(export(args.training_run.resolve(), args.output.resolve()))
+    print(export(args.training_run.resolve(), args.output.resolve(), args.record))

@@ -31,15 +31,32 @@ class Point:
 
 
 class Archive:
-    def __init__(self, env, rng):
+    def __init__(self, env, rng, visual_slots=0):
         self.env, self.rng = env, rng
         self.points = {}
         self.recent = 0
+        self.visual_slots = visual_slots
         self.keep(0, Point(visual_code(env.initial), 0, 0))
 
     def keep(self, slot, point):
         self.env.command("save", slot)
         self.points[slot] = point
+
+    def offer_visual(self, point, visits, best):
+        if not self.visual_slots or point.total < best - 100:
+            return
+        slots = [s for s in self.points if s >= 65]
+        if any(self.points[s].screen == point.screen for s in slots):
+            return
+        if len(slots) < self.visual_slots:
+            self.keep(65 + len(slots), point)
+            return
+        candidates = self.rng.choice(slots, min(6, len(slots)), replace=False)
+        def priority(p):
+            return (p.total >= best - 100, -visits[p.screen], -p.starts)
+        slot = min(candidates, key=lambda s: priority(self.points[s]))
+        if priority(point) >= priority(self.points[slot]):
+            self.keep(int(slot), point)
 
     def offer(self, point, recent=False):
         if recent:
@@ -61,9 +78,13 @@ class Archive:
             self.keep(slot, point)
 
     def start(self):
-        slots = sorted(self.points, key=lambda s: (-self.points[s].total, self.points[s].length))
+        slots = sorted((s for s in self.points if s < 65), key=lambda s: (-self.points[s].total, self.points[s].length))
         draw = self.rng.random()
-        if draw < .55:
+        high = self.points[slots[0]].total
+        visual = [s for s in self.points if s >= 65 and self.points[s].total >= high - 100]
+        if visual and draw < .45:
+            slots = visual
+        elif draw < .55:
             slots = slots[:6]
         elif draw < .85:
             slots = slots[:24]
@@ -77,13 +98,15 @@ class Archive:
         return point
 
 
-def train(directory, seed, budget):
+def train(directory, seed, budget, visual_slots=0):
     directory.mkdir(parents=True, exist_ok=True)
     settings = dict(seed=seed, observation="40x60 RGB, scalar reward, episode end",
                     reward="existing story/level rewards and 0.02 per first visited cell, uncapped",
                     root="fresh original ROM boot", receives_saves_from_other_runs=False,
                     behavior="online empirical pixel transition model plus symmetric button durations",
                     training_forks=True, used_for_frozen_evaluation=False)
+    if visual_slots:
+        settings["unrewarded_screen_slots"] = visual_slots
     setup = directory / "settings.json"
     if setup.exists() and json.loads(setup.read_text()) != settings:
         raise ValueError("Run configuration changed")
@@ -96,7 +119,7 @@ def train(directory, seed, budget):
     work = branches = 0
     started = time.monotonic()
     try:
-        archive = Archive(env, rng)
+        archive = Archive(env, rng, visual_slots)
         last_saved = best = 0
         if old:
             tape = (directory / old["audit"] / "game.bin").read_bytes()
@@ -114,6 +137,8 @@ def train(directory, seed, budget):
                 state = following
                 if reward:
                     archive.offer(Point(state, total, i))
+                elif visual_slots and i % 64 == 0:
+                    archive.offer_visual(Point(state, total, i), model.visits, total)
             if total != old["return_cents"] or state.hex() != old["screen"]:
                 raise RuntimeError("Cold boot failed to reproduce the self-earned training prefix")
             if terminal:
@@ -136,6 +161,8 @@ def train(directory, seed, budget):
                 point = Point(state, total, length)
                 if reward:
                     archive.offer(point)
+                elif visual_slots and work // 64 != (work - used) // 64:
+                    archive.offer_visual(point, model.visits, best)
                 best = max(total, best)
                 if (total == best and total >= last_saved + 50) or terminal:
                     relative = f"discoveries/work-{work:010d}"
@@ -145,6 +172,7 @@ def train(directory, seed, budget):
                     record = dict(work=work, branches=branches, return_cents=total, length=length,
                                   screen=state.hex(), audit=relative, tape_sha256=digest,
                                   training_only=True, terminal=terminal)
+                    write_json(target / "record.json", record)
                     write_json(summary, record)
                     last_saved = total
                 if terminal:
@@ -163,5 +191,9 @@ if __name__ == "__main__":
     parser.add_argument("--logdir", type=Path, required=True)
     parser.add_argument("--seed", type=int, default=69731)
     parser.add_argument("--steps", type=int, default=5000000)
+    parser.add_argument("--unrewarded-screen-slots", type=int, default=0,
+                        help="Retain this many different RGB states even when the last action had zero reward")
     args = parser.parse_args()
-    train(args.logdir.resolve(), args.seed, args.steps)
+    if not 0 <= args.unrewarded_screen_slots <= 1024:
+        parser.error("unrewarded screen slots must be between zero and 1024")
+    train(args.logdir.resolve(), args.seed, args.steps, args.unrewarded_screen_slots)
