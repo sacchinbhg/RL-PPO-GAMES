@@ -83,7 +83,7 @@ class RewardWindowSampler:
     def __call__(self):
         if self.training.get():
             with self.lock:
-                use_memory = self.memory is not None and self.memory.bands and not self.large_items
+                use_memory = self.memory is not None and bool(self.memory.bands) and not self.large_items
                 if self.memory is not None:
                     self.memory_choice.set(None)
                 if (len(self.weighted) or use_memory) and self.rng.random() < self.fraction:
@@ -154,6 +154,7 @@ def _install_retained_windows(replay, selector):
     def load(data=None, *args, **kwargs):
         if isinstance(data, dict) and "retained_v1" in data:
             with selector.lock:
+                selector.memory.bands.clear()
                 for window in data["retained_v1"]:
                     selector.memory.add(window)
                 selector.memory.rng.bit_generator.state = data["retained_rng"]

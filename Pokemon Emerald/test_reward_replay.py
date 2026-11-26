@@ -1,9 +1,12 @@
 """Run with the pinned Dreamer checkout on PYTHONPATH."""
+import importlib.util
 import pickle
 import tempfile
 import unittest
 
 import numpy as np
+if importlib.util.find_spec("embodied") is None:
+    raise unittest.SkipTest("Put the pinned Dreamer checkout on PYTHONPATH to run the replay tests")
 from embodied.core.replay import Replay
 from reward_replay import install_reward_sampling
 
