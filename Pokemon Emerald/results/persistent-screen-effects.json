@@ -1,0 +1,23 @@
+{
+  "reports": {
+    "button_frequency": {
+      "effect_probability": 0.71875,
+      "mean_squared_error": 0.20352521538734436
+    },
+    "whole_screen": {
+      "effect_probability": 0.8743055555555556,
+      "mean_squared_error": 0.07960155606269836
+    },
+    "local_screen": {
+      "effect_probability": 0.9006944444444445,
+      "mean_squared_error": 0.08473560214042664
+    }
+  },
+  "uniform": 0.4895833432674408,
+  "novel_positions": 162,
+  "sensitive": 96,
+  "model_sha256": "d54f0ac82d0f90304e5feda058365d4dddcc803633edff117fe25032c908c7ef",
+  "selected_patches_using_training_only": true,
+  "passes_comparison": true,
+  "heldout_stalled_policy_footage_used": false
+}

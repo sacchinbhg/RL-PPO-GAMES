@@ -1,0 +1,8 @@
+{
+  "real_endpoint_actions": 36,
+  "distinct_first_buttons": 9,
+  "all_input_histories_verified": true,
+  "matched_reference_search": true,
+  "independently_refit_effect_model_and_metrics": true,
+  "effect_model": "d54f0ac82d0f90304e5feda058365d4dddcc803633edff117fe25032c908c7ef"
+}

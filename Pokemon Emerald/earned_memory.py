@@ -154,7 +154,8 @@ class Memory:
             self.expected=(j,t+int(button==self.traces[j]["buttons"][t]))
 
 
-def play(directory, output, seed, limit, delay, allow_approximate=True, escape_loops=False, compare_on_same_frames=False):
+def play(directory, output, seed, limit, delay, allow_approximate=True, escape_loops=False, compare_on_same_frames=False,
+         effects_directory=None,effect_ranking="local"):
     from pixel_env import PixelPool
     import subprocess
     import sys
@@ -162,6 +163,12 @@ def play(directory, output, seed, limit, delay, allow_approximate=True, escape_l
         raise ValueError("Expected positive evaluation length and nonnegative perturbation interval")
     output.mkdir(parents=True,exist_ok=True)
     agent=Memory(directory,seed,allow_approximate,escape_loops)
+    planner=None
+    if effects_directory is not None:
+        from persistent_effect_policy import EffectPlanner
+        if not escape_loops or compare_on_same_frames:
+            raise ValueError("Effect ranking requires the loop-recovery policy")
+        planner=EffectPlanner(effects_directory,effect_ranking,seed)
     shadow=Memory(directory,seed,allow_approximate,not escape_loops) if compare_on_same_frames else None
     first_changed_choice=None
     config=dict(model_sha256=agent.identity["model_sha256"],seed=seed,button_budget=limit,
@@ -171,6 +178,8 @@ def play(directory, output, seed, limit, delay, allow_approximate=True, escape_l
         config["allow_approximate_visual_matches"]=False
     if escape_loops:
         config["retrieval_loop_recovery"]=dict(window=32,visits_to_same_memory_position=8,exploratory_buttons=16)
+    if planner is not None:
+        config["effect_planning"]=dict(sha256=planner.sha,ranking=effect_ranking,quiet_decisions=4,first_action_of_recovery=True)
     if compare_on_same_frames:
         config["compare_opposite_loop_setting_on_identical_observations"]=True
     setup=output/"provenance.json"
@@ -187,7 +196,11 @@ def play(directory, output, seed, limit, delay, allow_approximate=True, escape_l
         reward=0.
         interventions=0
         for n in range(1,limit+1):
+            prior_recoveries=agent.recovery_count
             proposed=agent.choose(frame,reward)
+            if planner is not None:
+                planner.observe(frame)
+                proposed=planner.select(frame,proposed,agent.recovery_count>prior_recoveries,n)
             actual=0 if delay and n%delay==0 else proposed
             if shadow is not None:
                 alternative=shadow.choose(frame,reward)
@@ -210,6 +223,9 @@ def play(directory, output, seed, limit, delay, allow_approximate=True, escape_l
                 status=dict(decisions=n,action_sources=dict(agent.usage),changed_actions=interventions)
                 if escape_loops:
                     status.update(recoveries=agent.recovery_count,first_recovery=agent.first_recovery)
+                if planner is not None:
+                    status.update(effect_choices=planner.calls,different_ranked_choices=planner.disagreements,
+                                  first_different_ranked_choice=planner.first_disagreement)
                 if compare_on_same_frames:
                     status["first_changed_choice_on_same_frames"]=first_changed_choice
                 write_json(output/"status.json",status)
@@ -233,6 +249,9 @@ if __name__=="__main__":
     parser.add_argument("--wait-every",type=int,default=0,help="Insert generic wait actions in a separate robustness trial")
     parser.add_argument("--exact-only",action="store_true",help="Allow only exact RGB matches when retrieving self-earned actions")
     parser.add_argument("--escape-loops",action="store_true",help="Try exploratory buttons after repeatedly retrieving the same training position")
+    parser.add_argument("--effects-directory",type=Path,help="Use a fitted persistent screen-effect model during loop recovery")
+    parser.add_argument("--effect-ranking",choices=("frequency","local"),default="local")
     args=parser.parse_args()
     fit(args.dataset,args.model)
-    play(args.model,args.output,args.seed,args.limit,args.wait_every,not args.exact_only,args.escape_loops)
+    play(args.model,args.output,args.seed,args.limit,args.wait_every,not args.exact_only,args.escape_loops,
+         effects_directory=args.effects_directory,effect_ranking=args.effect_ranking)

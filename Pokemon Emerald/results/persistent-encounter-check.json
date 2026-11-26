@@ -1,0 +1,38 @@
+{
+  "measured_heldout": 0.9006944444444445,
+  "heldout_sensitive": 96,
+  "frozen_wurmple_screen_local": [
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0
+  ],
+  "frozen_wurmple_screen_frequency": [
+    0.3179723620414734,
+    0.26728111505508423,
+    0.37788018584251404,
+    0.23502303659915924,
+    0.2718893885612488,
+    0.2534562349319458,
+    0.2626728117465973,
+    0.3317972421646118
+  ],
+  "buttons": [
+    1,
+    2,
+    3,
+    4,
+    5,
+    6,
+    7,
+    8
+  ],
+  "trigger_on_fifth_equal_frame": true,
+  "chosen_on_this_draw": 1,
+  "training_used_frozen_screen": false,
+  "weights": "d54f0ac82d0f90304e5feda058365d4dddcc803633edff117fe25032c908c7ef"
+}
