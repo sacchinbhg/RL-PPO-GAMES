@@ -99,7 +99,7 @@ class Options:
         return chosen
 
 
-def run(folder, budget, motion_probe=None, stage_reservoir=0, proposal=None):
+def run(folder, budget, motion_probe=None, stage_reservoir=0, proposal=None, systematic=False):
     origin=json.loads((folder/"branch-origin.json").read_text())
     settings=dict(seed=origin["seed"],training_forks=True,receives_saves_from_other_runs=False,
                   observation="RGB, scalar reward, episode end", root="self-earned cold-boot action history",
@@ -108,6 +108,10 @@ def run(folder, budget, motion_probe=None, stage_reservoir=0, proposal=None):
         settings["visual_motion_source"]=json.loads(motion_probe.read_text())["training_tape_sha256"]
     if stage_reservoir:
         settings["stage_reservoir"]=stage_reservoir
+    if systematic:
+        if not stage_reservoir:
+            raise ValueError("Systematic option trials require at least one visual landmark")
+        settings["systematic_landmark_trials"]=True
     if proposal:
         settings["proposal"]=proposal["kind"]
         settings["proposal_probability_per_option"]=.5
@@ -153,7 +157,8 @@ def run(folder, budget, motion_probe=None, stage_reservoir=0, proposal=None):
         landmarks=None
         if stage_reservoir:
             from scene_reservoir import SceneReservoir
-            landmarks=SceneReservoir(env,np.random.default_rng([origin["seed"],work,817]),stage_reservoir)
+            landmarks=SceneReservoir(env,np.random.default_rng([origin["seed"],work,817]),stage_reservoir,systematic)
+        landmark_stride=16 if systematic else 64
         state=model.screen(env.initial)
         if guide:
             guide.restore(env.initial,state)
@@ -179,7 +184,7 @@ def run(folder, budget, motion_probe=None, stage_reservoir=0, proposal=None):
             point=Point(state,total,i,pose=guide.pose if guide else None,stage=stage)
             if cents:
                 archive.offer(point)
-            if landmarks and (i%64==0 or cents>=100):
+            if landmarks and (i%landmark_stride==0 or cents>=100):
                 landmarks.consider(point,pic)
             if i%4096==0:
                 write_json(folder/"initialization.json",dict(cold_replay_buttons=i,expected=len(tape)))
@@ -200,11 +205,15 @@ def run(folder, budget, motion_probe=None, stage_reservoir=0, proposal=None):
             stage=point.stage
             if guide:
                 guide.restore(restored,state,point.pose)
-            stop=min(work+int(rng.choice([128,256,512,1024,2048])),budget)
+            lengths=[16,32,64] if systematic else [128,256,512,1024,2048]
+            stop=min(work+int(rng.choice(lengths)),budget)
             branches+=1
             while work<stop:
                 start_state=state
-                if proposal and gate.random()<.5:
+                trial=landmarks.next_option(DURATIONS,stop-work) if systematic else None
+                if trial:
+                    guided=trial
+                elif proposal and gate.random()<.5:
                     guided=env.propose(),1
                     proposal_choices+=1
                 else:
@@ -227,7 +236,7 @@ def run(folder, budget, motion_probe=None, stage_reservoir=0, proposal=None):
                     point=Point(state,total,length,pose=guide.pose if guide else None,stage=stage)
                     if cents:
                         archive.offer(point)
-                    if landmarks and (length//64!=(length-used)//64 or cents>=100):
+                    if landmarks and (length//landmark_stride!=(length-used)//landmark_stride or cents>=100):
                         landmarks.consider(point,pic)
                     best=max(best,total)
                     if (total==best and total>=last_saved+50) or terminal:
@@ -254,6 +263,8 @@ def run(folder, budget, motion_probe=None, stage_reservoir=0, proposal=None):
                 status.update(landmark_stage=landmarks.stage,landmark_slots=len(landmarks.points),
                               landmark_appearances=len(landmarks.seen),landmark_starts=landmarks.chosen,
                               landmark_start_length_bins=dict(landmarks.starts))
+                if systematic:
+                    status["untried_state_option_pairs_tested"]=landmarks.distinct_trials
             if proposal:
                 status.update(proposals_executed=proposal_choices,neural_observations=env.observed,
                               verified_training_restores=env.restores)
@@ -273,6 +284,8 @@ if __name__=="__main__":
     parser.add_argument("--motion-probe",type=Path)
     parser.add_argument("--stage-reservoir",type=int,default=0,
                         help="Keep this many visual landmarks at the highest number of large scalar rewards")
+    parser.add_argument("--systematic-options",action="store_true",
+                        help="Run short training branches that test different options from the same saved state")
     predictors=parser.add_mutually_exclusive_group()
     predictors.add_argument("--dreamer-proposal",type=Path,help="Use a frozen Dreamer checkpoint for half of option choices")
     predictors.add_argument("--uniform-proposal",action="store_true",help="Use uniform buttons at the same choice rate")
@@ -296,4 +309,4 @@ if __name__=="__main__":
         proposal=dict(kind="dreamer",checkpoint=args.dreamer_proposal,parent=args.proposal_parent,upstream=args.upstream)
     elif args.uniform_proposal:
         proposal=dict(kind="uniform")
-    run(folder,budget,args.motion_probe,args.stage_reservoir,proposal)
+    run(folder,budget,args.motion_probe,args.stage_reservoir,proposal,args.systematic_options)

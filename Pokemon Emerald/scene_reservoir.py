@@ -12,8 +12,12 @@ def appearance(image):
 
 
 class SceneReservoir:
-    def __init__(self,env,rng,capacity):
+    def __init__(self,env,rng,capacity,systematic=False):
         self.env,self.rng,self.capacity=env,rng,capacity
+        self.systematic=systematic
+        self.attempts={}
+        self.last_slot=None
+        self.distinct_trials=0
         self.stage=-1
         self.starts=Counter()
         self.seen=Counter()
@@ -31,12 +35,16 @@ class SceneReservoir:
             self.ids.clear()
             self.keys.clear()
             self.points.clear()
+            self.attempts.clear()
         key=appearance(image)
         self.seen[key]+=1
         if key in self.ids:
+            slot=self.ids[key]
+            if self.systematic and self.attempts.get(slot):
+                # Preserve the exact emulator state while testing its different outgoing options.
+                return
             if self.rng.integers(self.seen[key])!=0:
                 return
-            slot=self.ids[key]
         elif self.seen[key]>1:
             return
         elif len(self.keys)<self.capacity:
@@ -51,10 +59,12 @@ class SceneReservoir:
         self.ids[key]=slot
         self.keys[slot]=key
         self.points[slot]=point
+        self.attempts.pop(slot,None)
         self.env.command("save",1000+slot)
 
     def start(self):
-        if not self.points or self.rng.random()>=.5:
+        self.last_slot=None
+        if not self.points or self.rng.random()>=(.9 if self.systematic else .5):
             return None
         slot=int(self.rng.integers(len(self.points)))
         point=self.points[slot]
@@ -62,5 +72,19 @@ class SceneReservoir:
         if visual_code(image)!=point.screen:
             raise RuntimeError("Stored visual landmark disagrees with its original image")
         self.chosen+=1
+        self.last_slot=slot
         self.starts[point.length//1024]+=1
         return point,image
+
+    def next_option(self,durations,remaining):
+        if self.last_slot is None:
+            return None
+        attempted=self.attempts.setdefault(self.last_slot,Counter())
+        options=[(b,n) for b in range(9) for n in durations if n<=remaining]
+        fewest=min(attempted[op] for op in options)
+        choices=[op for op in options if attempted[op]==fewest]
+        chosen=choices[int(self.rng.integers(len(choices)))]
+        self.distinct_trials+=int(attempted[chosen]==0)
+        attempted[chosen]+=1
+        self.last_slot=None
+        return chosen

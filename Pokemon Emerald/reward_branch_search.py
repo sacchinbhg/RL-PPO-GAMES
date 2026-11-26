@@ -118,7 +118,7 @@ def train(directory, seed, budget, visual_slots=0):
     old = json.loads(summary.read_text()) if summary.exists() else None
     rng = np.random.default_rng([seed, old["work"] if old else 0])
     model = ScreenExplorer(rng)
-    env = ForkEnv()
+    env = ForkEnv(directory/"first-maps")
     work = branches = 0
     started = time.monotonic()
     try:
