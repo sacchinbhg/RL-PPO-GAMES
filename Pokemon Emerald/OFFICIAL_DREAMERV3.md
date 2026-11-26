@@ -147,6 +147,15 @@ With `--recent-landmarks 32`, the same 128 slots keep the 32 most recently disco
 
 The optional `--shared-visit-reward` changes how the emulator awards the existing 0.02 location bonus during training. Once any branch has collected that bonus for a cell, later branches receive zero for visiting it again. The simulator still pays ordinary story and level rewards. The controller receives the usual RGB image and one scalar. Every saved game's audit also records its ordinary return so its route can be verified independently from boot. Restarting this variant reconstructs the shared reward history by repeating the original search deterministically.
 
+For a separate exploration experiment, `explore_reward_frontiers.py` saves a training state whenever the controller earns a new reward. The latest sequence of major rewards has priority. Each saved state gets repeated trials with different short button sequences. A second, smaller group of saves keeps unfamiliar appearances after actions whose learned effect did not predict scrolling. A model of screen transitions chooses actions for longer attempts. The controller receives pixels, one scalar and the episode end signal. The original game log provides an independent score for each saved route.
+
+```bash
+python explore_reward_frontiers.py --source OWN_TRAINING_SEARCH --record VERIFIED_DISCOVERY/record.json \
+  --motion MOTION_PROBE.json --output FRONTIER_SEARCH --steps 262144 --capacity 768
+```
+
+The search logs the original discovery cost, the cost of replaying its input history, and new emulated decisions separately. Export discoveries with `export_reward_branch.py` for training the official learner. Use fresh games to evaluate the resulting policy.
+
 ### Can Dreamer extend a route that memory can repeat?
 
 Run two fresh boots with the same frozen visual memory. When both games reach the end of a stored sequence or make no progress through the known screens for 512 decisions, the trained Dreamer controls the first game. Uniform random buttons control the second. Dreamer receives its actual previous input even while the memory chooses the buttons. The run checks that the two games have identical images and rewards until the switch. Read `handoff.json` for the first decision made independently in each game.
