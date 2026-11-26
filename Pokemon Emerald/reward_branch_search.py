@@ -28,6 +28,7 @@ class Point:
     total: int
     length: int
     starts: int = 0
+    pose: tuple | None = None
 
 
 class Archive:
@@ -92,6 +93,7 @@ class Archive:
         chosen = int(self.rng.choice(slots, p=weights / weights.sum()))
         point = self.points[chosen]
         pic = self.env.command("restore", chosen)
+        self.restored_image = pic
         if visual_code(pic) != point.screen:
             raise RuntimeError("Training fork returned a different image")
         point.starts += 1

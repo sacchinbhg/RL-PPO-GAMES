@@ -85,3 +85,37 @@ The optional training search argument `--unrewarded-screen-slots 160` keeps visu
 Each agent decision advances 24 GBA frames. Use `--limit 65536` on the direct frozen player to compare checkpoints at the same button budget. Use `--until-badge --seed 271341` to start four fresh games with another sampling seed and keep playing across reporting milestones until a victory is independently verified. The player writes its actual progress every 1,024 decisions. In an uncapped game it saves full tapes at power-of-two reporting checkpoints and major rewards. Use a fresh output directory for each uncapped attempt so an interrupted game's evidence is preserved.
 
 Map names appear in human-facing game audits. The policy receives RGB, scalar reward and episode signals. The direct player also saves the input prefix at each new map. To verify a forest arrival independently, run `python pixel_replay.py AUDIT_JSON OUTPUT --map PetalburgWoods --video`. The verifier checks the original ROM, replays the recorded buttons from boot, matches the story and map timings and saves the entry frame and a short clip.
+
+### Training on an agent's own successful games
+
+`export_reward_branch.py` replays a discovery from an agent's training archive and writes aligned images, actions, rewards, a complete input tape and a verification manifest. Each action connects two successive images. The scalar reward belongs to the image reached by that action.
+
+Use exported training trajectories to update the pinned Dreamer world model, reward and continuation predictors, imagined actor and critic. Each trajectory occupies one continuous batch lane and restarts at boot when its recorded episode ends. Choose the update budget so the longest lane receives at least one pass. With length 32, 1,152 updates cover 36,864 observation positions per lane. The output records optimizer updates separately from emulator decisions.
+
+```bash
+python train_earned_dreamer.py --upstream /opt/emerald-rl/source \
+  --source-run PARENT_EVALUATION --dataset EARNED_GAME_A --dataset EARNED_GAME_B \
+  --output ADAPTATION --updates 1152
+python play_frozen_dreamer.py ADAPTATION/frozen-policy PARENT_EVALUATION FRESH_GAMES \
+  --upstream /opt/emerald-rl/source --limit 65536
+```
+
+To measure how much an explicit visual memory can recover from the same games, run a separate self-imitation controller. It checks its expected next screen against the real image and retrieves a matching stored screen when possible. Using a different output directory and adding `--wait-every 257` tests recovery after input timing changes. Compare its resulting action tape to the training tapes to distinguish exact reproduction from new decisions.
+
+```bash
+python earned_memory.py --dataset EARNED_GAME_A --dataset EARNED_GAME_B \
+  --model MEMORY --output MEMORY_FRESH --limit 65536
+```
+
+### Learning button durations and screen motion
+
+The duration explorer estimates the reward and the next screen after repeating each button for 1, 2, 4, 8 or 16 decisions. Start both comparison arms from the same self-earned discovery and choose a separate output directory for each. The extra budget counts every newly simulated button decision across the branches. The run records the inherited exploration cost and the cost of replaying the starting history separately.
+
+```bash
+python option_explorer.py DURATION_RUN --from-search OWN_TRAINING_SEARCH --additional-steps 1000000
+python fit_visual_motion.py VERIFIED_BEST_GAME MOTION_PROBE.json
+python option_explorer.py MOTION_RUN --from-search OWN_TRAINING_SEARCH --additional-steps 1000000 \
+  --motion-probe MOTION_PROBE.json
+```
+
+The motion fit estimates displacement from RGB frame pairs in the first three quarters of the training game. It reports accuracy and coverage on the final quarter. The motion explorer tests predicted displacements against new frames and favors less visited locations in its estimated coordinates. The probe must match the source discovery's action-tape hash. Use fresh games and equal budgets to compare downstream gameplay.
