@@ -141,12 +141,16 @@ def main():
     parser.add_argument("--reward-replay-fraction", type=float, default=0.,
                         help="Fraction of offline training samples drawn in proportion to peak absolute reward")
     parser.add_argument("--evaluate",type=Path,help="Evaluate frozen upstream checkpoint")
+    parser.add_argument("--retain-reward-windows", action="store_true",
+                        help="Keep bounded self-earned reward sequences for use after FIFO eviction")
     args=parser.parse_args()
     args.discount_horizon = resolve_discount_horizon(args.discount_horizon, args.evaluate)
     if args.discount_horizon < 2:
         parser.error("discount horizon must be at least 2")
     if not 0 <= args.reward_replay_fraction <= 1:
         parser.error("reward replay fraction must be between zero and one")
+    if args.retain_reward_windows and not args.reward_replay_fraction:
+        parser.error("retaining reward windows requires a positive reward replay fraction")
     checkout=args.upstream.resolve()
     rev=subprocess.check_output(["git","-C",str(checkout),"rev-parse","HEAD"],text=True).strip()
     if rev!=PIN:raise ValueError(f"Expected {PIN}, found {rev}")
@@ -163,7 +167,8 @@ def main():
         def make_reward_replay(config, folder, mode="train"):
             replay = make_replay(config, folder, mode)
             if mode == "train":
-                install_reward_sampling(replay, config.replay_context, args.reward_replay_fraction, args.seed)
+                install_reward_sampling(replay, config.replay_context, args.reward_replay_fraction,
+                                        args.seed, args.retain_reward_windows)
             return replay
         upstream.make_replay = make_reward_replay
     class Adapter(embodied.Env):
@@ -193,7 +198,7 @@ def main():
             self.done=terminal or self.age>=args.episode
             if self.done:
                 self.pool.command(0,"audit",str(args.logdir.resolve()/"external-audit"/self.session/f"env-{self.index}"))
-            elif not args.evaluate and self.age and (self.age % 8192 == 0 or reward >= 4):
+            elif self.age and (self.age % 8192 == 0 or reward >= 4):
                 folder = args.logdir.resolve()/"in-progress"/self.session/f"env-{self.index}"/f"step-{self.age:06}"
                 self.pool.command(0, "audit", str(folder))
             padded=np.zeros((64,64,3),np.uint8)
@@ -211,7 +216,8 @@ def main():
                   seed=args.seed,batch=args.batch,length=args.length,
                   sample_ratio=args.ratio,agent_size="upstream size1m",run_steps=args.steps,envs=args.envs,
                   replay_capacity=REPLAY_CAPACITY,uncapped_exploration=args.uncapped_exploration,
-                  reward_replay_fraction=args.reward_replay_fraction,parallel_envs=args.parallel_envs)
+                  reward_replay_fraction=args.reward_replay_fraction,retain_reward_windows=args.retain_reward_windows,
+                  parallel_envs=args.parallel_envs)
     provenance = log / "provenance.json"
     if provenance.exists():
         previous = json.loads(provenance.read_text())
@@ -221,6 +227,8 @@ def main():
             raise ValueError("Use a new run directory when changing exploration rewards")
         if previous.get("reward_replay_fraction", 0.) != args.reward_replay_fraction:
             raise ValueError("Use a new run directory when changing the replay sampler")
+        if previous.get("retain_reward_windows", False) != args.retain_reward_windows:
+            raise ValueError("Use a separate training directory for retained reward windows")
     if args.evaluate:
         frozen, checkpoint_info = freeze_for_evaluation(args.evaluate.resolve(), log, elements)
         settings.update(checkpoint_info)
