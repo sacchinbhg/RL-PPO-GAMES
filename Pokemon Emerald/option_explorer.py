@@ -99,7 +99,8 @@ class Options:
         return chosen
 
 
-def run(folder, budget, motion_probe=None, stage_reservoir=0, proposal=None, systematic=False, reward_landmarks=False):
+def run(folder, budget, motion_probe=None, stage_reservoir=0, proposal=None, systematic=False, reward_landmarks=False,
+        recent_landmarks=0):
     origin=json.loads((folder/"branch-origin.json").read_text())
     settings=dict(seed=origin["seed"],training_forks=True,receives_saves_from_other_runs=False,
                   observation="RGB, scalar reward, episode end", root="self-earned cold-boot action history",
@@ -108,6 +109,10 @@ def run(folder, budget, motion_probe=None, stage_reservoir=0, proposal=None, sys
         settings["visual_motion_source"]=json.loads(motion_probe.read_text())["training_tape_sha256"]
     if stage_reservoir:
         settings["stage_reservoir"]=stage_reservoir
+    if recent_landmarks:
+        if not 0<recent_landmarks<=stage_reservoir:
+            raise ValueError("The recent landmark count must fit inside the reservoir")
+        settings["recent_landmarks"]=recent_landmarks
     if reward_landmarks:
         if not stage_reservoir:
             raise ValueError("Reward-triggered landmarks require a positive reservoir size")
@@ -162,7 +167,7 @@ def run(folder, budget, motion_probe=None, stage_reservoir=0, proposal=None, sys
         if stage_reservoir:
             from scene_reservoir import SceneReservoir
             landmarks=SceneReservoir(env,np.random.default_rng([origin["seed"],work,817]),stage_reservoir,
-                                     systematic,reward_landmarks)
+                                     systematic,reward_landmarks,recent_landmarks)
         state=model.screen(env.initial)
         if guide:
             guide.restore(env.initial,state)
@@ -269,6 +274,8 @@ def run(folder, budget, motion_probe=None, stage_reservoir=0, proposal=None, sys
                               landmark_start_length_bins=dict(landmarks.starts))
                 if systematic:
                     status["untried_state_option_pairs_tested"]=landmarks.distinct_trials
+                if recent_landmarks:
+                    status["recent_landmark_starts"]=landmarks.recent_starts
             if proposal:
                 status.update(proposals_executed=proposal_choices,neural_observations=env.observed,
                               verified_training_restores=env.restores)
@@ -292,6 +299,8 @@ if __name__=="__main__":
                         help="Run short training branches that test different options from the same saved state")
     parser.add_argument("--reward-landmarks",action="store_true",
                         help="Offer visual landmarks immediately after any positive scalar reward")
+    parser.add_argument("--recent-landmarks",type=int,default=0,
+                        help="Reserve this many existing slots for the newest distinct visual landmarks")
     predictors=parser.add_mutually_exclusive_group()
     predictors.add_argument("--dreamer-proposal",type=Path,help="Use a frozen Dreamer checkpoint for half of option choices")
     predictors.add_argument("--uniform-proposal",action="store_true",help="Use uniform buttons at the same choice rate")
@@ -315,4 +324,5 @@ if __name__=="__main__":
         proposal=dict(kind="dreamer",checkpoint=args.dreamer_proposal,parent=args.proposal_parent,upstream=args.upstream)
     elif args.uniform_proposal:
         proposal=dict(kind="uniform")
-    run(folder,budget,args.motion_probe,args.stage_reservoir,proposal,args.systematic_options,args.reward_landmarks)
+    run(folder,budget,args.motion_probe,args.stage_reservoir,proposal,args.systematic_options,args.reward_landmarks,
+        args.recent_landmarks)

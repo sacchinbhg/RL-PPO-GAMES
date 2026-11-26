@@ -130,6 +130,8 @@ Use `--systematic-options --stage-reservoir 128` to test different first actions
 
 Add `--reward-landmarks` to offer a visual landmark only on a positive scalar reward. Large rewards still advance the reservoir to a new stage. A paired test uses the same seed, original training history, 128 slots and 262,144 additional controller decisions for both conditions. On the verified 36,058-button training history, periodic sampling offered 2,261 candidate states and reward-triggered sampling offered 376. Each reservoir retained 128. The controller receives the image and scalar reward at each step.
 
+With `--recent-landmarks 32`, the same 128 slots keep the 32 most recently discovered distinct appearances plus a uniform reservoir from earlier ones at the same reward stage. Restarts still sample uniformly among stored landmarks. On the original 36,058 actions, the reward-triggered archive kept 23 of the newest 32 appearances. Reserving the 32 slots kept all 32. These checks measure coverage of training saves. Fresh games score whether the resulting experience teaches the policy to travel farther.
+
 ### Can Dreamer extend a route that memory can repeat?
 
 Run two fresh boots with the same frozen visual memory. When both games reach the end of a stored sequence or make no progress through the known screens for 512 decisions, the trained Dreamer controls the first game. Uniform random buttons control the second. Dreamer receives its actual previous input even while the memory chooses the buttons. The run checks that the two games have identical images and rewards until the switch. Read `handoff.json` for the first decision made independently in each game.
