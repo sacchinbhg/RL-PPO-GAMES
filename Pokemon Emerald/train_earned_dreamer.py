@@ -37,10 +37,18 @@ class Trajectory:
         if not official and (not self.audit["uncapped_exploration"] or self.source["source_training_forks"]<1):
             raise ValueError("Expected a verified self-generated training run")
 
-    def episode(self, uncapped=False):
+    def episode(self, uncapped=False, whiteout_cost_cents=0):
         """Emit (image, outgoing action, incoming reward, first, last, terminal) in driver order."""
         if uncapped and not self.audit["uncapped_exploration"]:
             raise ValueError("Capped training logs do not contain later first-visit rewards")
+        losses=set()
+        if whiteout_cost_cents:
+            verified=self.source.get("verified_whiteouts")
+            if whiteout_cost_cents<0 or verified is None or verified!=self.audit.get("whiteouts"):
+                raise ValueError("A nonnegative whiteout cost requires independently verified battle logs")
+            losses={entry["decision"] for entry in verified}
+            if len(losses)!=len(verified) or any(not 1<=step<=len(self.tape) for step in losses):
+                raise ValueError("Unexpected whiteout decision in training data")
         cursor = raw_return = visits = 0
         incoming, done, previous = 0., False, None
         for path in sorted(self.folder.glob("chunk-*.npz")):
@@ -65,6 +73,8 @@ class Trajectory:
                     visits += 1
                     if not uncapped and visits > 50:
                         cents -= 2
+                if cursor+1 in losses:
+                    cents-=whiteout_cost_cents
                 incoming, done = cents / 100, bool(end[i])
                 cursor += 1
             previous = image[-1].copy()
@@ -73,9 +83,9 @@ class Trajectory:
             raise ValueError("Final training episode disagrees with its original-ROM audit")
         yield previous, 0, incoming, False, True, done
 
-    def repeat(self, uncapped):
+    def repeat(self, uncapped, whiteout_cost_cents=0):
         while True:
-            yield from self.episode(uncapped)
+            yield from self.episode(uncapped,whiteout_cost_cents)
 
 
 def populate(batch, lanes, last_actions):
@@ -101,7 +111,7 @@ def write_json(path, value):
     draft.replace(path)
 
 
-def train(datasets, parent, output, upstream_source, updates, uncapped_training=False):
+def train(datasets, parent, output, upstream_source, updates, uncapped_training=False, whiteout_cost_cents=0):
     import elements
     import jax
     from ruamel.yaml import YAML
@@ -118,7 +128,7 @@ def train(datasets, parent, output, upstream_source, updates, uncapped_training=
     provenance = json.loads((parent / "provenance.json").read_text())
     uncapped = uncapped_training or provenance.get("uncapped_exploration",False)
     for game in games:
-        for _ in game.episode(uncapped):
+        for _ in game.episode(uncapped,whiteout_cost_cents):
             pass
     weights = parent / "frozen-policy/agent.pkl"
     if provenance["agent_sha256"] != digest(weights):
@@ -131,6 +141,9 @@ def train(datasets, parent, output, upstream_source, updates, uncapped_training=
                 sampling="one chronological lane per earned training episode, starting at boot and cycling at its end")
     if uncapped_training:
         plan["exploration_reward_override"]="keep every earned first-visit reward during adaptation"
+    if whiteout_cost_cents:
+        plan["whiteout_cost_cents"]=whiteout_cost_cents
+        plan["verified_whiteouts_per_game"]=[len(t.source["verified_whiteouts"]) for t in games]
     if len(games) > 1:
         common = next((i for i, choices in enumerate(zip(*(g.tape for g in games)))
                        if len(set(choices)) != 1), min(len(g.tape) for g in games))
@@ -166,7 +179,7 @@ def train(datasets, parent, output, upstream_source, updates, uncapped_training=
         original = pickle.load(file)
     agent.load(original)
     start = int(agent.n_updates)
-    lanes = [t.repeat(plan["uncapped_exploration"]) for t in games]
+    lanes = [t.repeat(plan["uncapped_exploration"],whiteout_cost_cents) for t in games]
     previous = np.zeros(len(lanes), np.int32)
     carry = agent.init_train(len(lanes))
     last_metrics = {}
@@ -221,6 +234,8 @@ if __name__ == "__main__":
     parser.add_argument("--updates", type=int, required=True)
     parser.add_argument("--uncapped-training-exploration", action="store_true",
                         help="Keep exploration rewards after the first 50 visited cells during adaptation")
+    parser.add_argument("--whiteout-cost-cents", type=int, default=0,
+                        help="Subtract this many reward cents once per independently replayed whiteout during training")
     args = parser.parse_args()
     train([p.resolve() for p in args.dataset], args.source_run.resolve(), args.output.resolve(),
-          args.upstream.resolve(), args.updates, args.uncapped_training_exploration)
+          args.upstream.resolve(), args.updates, args.uncapped_training_exploration, args.whiteout_cost_cents)

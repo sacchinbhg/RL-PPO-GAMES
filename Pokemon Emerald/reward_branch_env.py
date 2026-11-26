@@ -6,9 +6,9 @@ from pathlib import Path
 import traceback
 
 
-def _worker(pipe, map_audits=None):
+def _worker(pipe, map_audits=None, log_whiteouts=False):
     from emerald import Emerald
-    from pixel_env import Score, first_map_audit, game_paths
+    from pixel_env import Score, WhiteoutLog, first_map_audit, game_paths
 
     game = Emerald(*game_paths())
     try:
@@ -16,6 +16,7 @@ def _worker(pipe, map_audits=None):
         score = Score(uncapped_exploration=True)
         picture, tape, total, terminal = game.boot_image, bytearray(), 0, False
         slots = {}
+        losses=WhiteoutLog() if log_whiteouts else None
         if map_audits:
             map_audits.mkdir(parents=True, exist_ok=True)
         saved_maps = set()
@@ -25,6 +26,8 @@ def _worker(pipe, map_audits=None):
             report = dict(steps=len(tape), events=score.events, first_visit_cells=len(score.cells),
                           maps_first_reached=score.first_maps, uncapped_exploration=True,
                           return_cents=cents, source="self-generated training forks")
+            if losses is not None:
+                report["whiteouts"]=losses.events
             (target / "game.json").write_text(json.dumps(report, indent=2))
         pipe.send(picture)
         while True:
@@ -42,6 +45,8 @@ def _worker(pipe, map_audits=None):
                     amount, terminal = score.read(game, descriptor)
                     reward += round(100 * amount)
                     tape.append(button)
+                    if losses is not None:
+                        losses.observe(game,len(tape))
                     if map_audits and len(score.first_maps) != n_maps:
                         name = next(reversed(score.first_maps))
                         if name not in saved_maps:
@@ -52,12 +57,13 @@ def _worker(pipe, map_audits=None):
                 total += reward
                 response = picture, reward, terminal, used
             elif command == "save":
-                slots[arg] = game.save(), copy.deepcopy(score), picture.copy(), bytes(tape), total, terminal
+                slots[arg] = game.save(), copy.deepcopy(score), picture.copy(), bytes(tape), total, terminal, copy.deepcopy(losses)
                 response = True
             elif command == "restore":
-                blob, old_score, picture, history, total, terminal = slots[arg]
+                blob, old_score, picture, history, total, terminal, old_losses = slots[arg]
                 game.load(blob)
                 score, tape = copy.deepcopy(old_score), bytearray(history)
+                losses=copy.deepcopy(old_losses)
                 response = picture
             elif command == "audit":
                 target = Path(arg)
@@ -74,10 +80,10 @@ def _worker(pipe, map_audits=None):
 
 
 class ForkEnv:
-    def __init__(self, map_audits=None):
+    def __init__(self, map_audits=None, log_whiteouts=False):
         ctx = mp.get_context("spawn")
         self.pipe, back = ctx.Pipe()
-        self.process = ctx.Process(target=_worker, args=(back,map_audits), daemon=True)
+        self.process = ctx.Process(target=_worker, args=(back,map_audits,log_whiteouts), daemon=True)
         self.process.start()
         back.close()
         self.initial = self.receive()

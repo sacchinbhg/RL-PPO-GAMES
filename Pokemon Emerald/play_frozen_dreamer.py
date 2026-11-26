@@ -80,7 +80,7 @@ def load_actor(checkpoint, source_run, seed, source, batch_size=4, with_forks=Fa
     return decide
 
 
-def play(checkpoint, source_run, directory, limit, reference, source, eval_seed=None):
+def play(checkpoint, source_run, directory, limit, reference, source, eval_seed=None, log_whiteouts=False):
     directory.mkdir(parents=True, exist_ok=True)
     if limit is not None and limit <= 0:
         raise ValueError("A game must include at least one button decision")
@@ -95,6 +95,8 @@ def play(checkpoint, source_run, directory, limit, reference, source, eval_seed=
     identity = dict(checkpoint=str(checkpoint), weight_sha256=sha, seed=seed,
                     buttons_per_game=limit, games=4, in_game_restores=0, weight_updates=0, platform="WSL CUDA",
                     reference_constraint=str(reference) if reference else None)
+    if log_whiteouts:
+        identity["external_whiteout_log"]=True
     previous = directory / "provenance.json"
     if previous.exists() and json.loads(previous.read_text()) != identity:
         raise ValueError("Output directory was used for a different policy")
@@ -113,7 +115,7 @@ def play(checkpoint, source_run, directory, limit, reference, source, eval_seed=
         ref = [files[f"env-{i}"].read_bytes() for i in range(4)]
         assert len({len(t) for t in ref}) == 1
     policy = load_actor(checkpoint, source_run, seed, source)
-    pool = PixelPool(4, provenance.get("uncapped_exploration", False),directory/"first-maps")
+    pool = PixelPool(4, provenance.get("uncapped_exploration", False),directory/"first-maps",log_whiteouts)
     try:
         images = np.stack([pool.command(i,"reset") for i in range(4)])
         rewards = np.zeros(4, np.float32)
@@ -176,6 +178,7 @@ if __name__ == "__main__":
     parser.add_argument("--upstream", type=Path, required=True)
     parser.add_argument("--reference", type=Path)
     parser.add_argument("--seed", type=int, help="Use an independent policy sampling seed for this evaluation")
+    parser.add_argument("--log-whiteouts",action="store_true",help="Record game-reported blackouts in the external game audit")
     args = parser.parse_args()
     play(args.checkpoint.resolve(), args.source_run.resolve(), args.output.resolve(), args.limit,
-         args.reference.resolve() if args.reference else None, args.upstream.resolve(), args.seed)
+         args.reference.resolve() if args.reference else None, args.upstream.resolve(), args.seed, args.log_whiteouts)

@@ -27,11 +27,13 @@ def export(run, out, record_path=None):
     out.mkdir(parents=True, exist_ok=True)
     dest = out / record["tape_sha256"]
     if dest.exists():
+        if "whiteouts" in audit and json.loads((dest/"manifest.json").read_text()).get("verified_whiteouts")!=audit["whiteouts"]:
+            raise ValueError("The existing export has different battle-outcome evidence")
         return dest
     with tempfile.TemporaryDirectory(dir=out) as tmp:
         draft = Path(tmp) / "verified"
         draft.mkdir()
-        env = PixelPool(1, uncapped_exploration=True)
+        env = PixelPool(1, uncapped_exploration=True,log_whiteouts="whiteouts" in audit)
         total = 0
         try:
             picture = env.command(0, "reset")
@@ -56,12 +58,16 @@ def export(run, out, record_path=None):
         if (checked["events"] != audit["events"] or checked["first_visit_cells"] != audit["first_visit_cells"]
                 or total != record["return_cents"] or replay.with_suffix(".bin").read_bytes() != tape):
             raise ValueError("Cold-boot playback disagreed with the training branch")
+        if "whiteouts" in audit and checked["whiteouts"]!=audit["whiteouts"]:
+            raise ValueError("Cold-boot playback disagreed with the training battle outcomes")
         manifest = dict(source_sha256=record["tape_sha256"], source_seed=settings["seed"],
                         search_buttons_at_discovery=record["work"], decisions=len(tape),
                         return_cents=total, source_training_forks=record["branches"],
                         replay_restores_during_game=0, frozen_evaluation_data_used=False,
                         alignment="Action i takes image i to image i+1 and then earns reward i.",
                         chunk_length=256)
+        if "whiteouts" in audit:
+            manifest["verified_whiteouts"]=checked["whiteouts"]
         (draft / "manifest.json").write_text(json.dumps(manifest, indent=2))
         draft.rename(dest)
     return dest

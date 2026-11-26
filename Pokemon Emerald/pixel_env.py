@@ -70,6 +70,21 @@ class Score:
         return reward,badge
 
 
+class WhiteoutLog:
+    """Original-ROM battle losses for external audits. The policy sees no log fields."""
+    def __init__(self):
+        self.active=False
+        self.events=[]
+
+    def observe(self,game,decision):
+        callback=int.from_bytes(game.ram(0x030022c4,4),"little")&~1
+        active=callback==0x08085f58
+        if active and not self.active:
+            outcome=int.from_bytes(game.ram(0x0202433a,1),"little")
+            self.events.append(dict(decision=decision,outcome=outcome))
+        self.active=active
+
+
 def first_map_audit(parent, name, write):
     target=parent/name
     if target.exists():
@@ -81,12 +96,13 @@ def first_map_audit(parent, name, write):
         draft.rename(target)
 
 
-def worker(conn,n,uncapped_exploration=False,map_audits=None):
+def worker(conn,n,uncapped_exploration=False,map_audits=None,log_whiteouts=False):
     env=None
     try:
         env=Emerald(*game_paths())
         episode=0
         score=Score(uncapped_exploration)
+        losses=WhiteoutLog() if log_whiteouts else None
         tape=bytearray()
         def audit(target,full=True):
             target.mkdir(parents=True,exist_ok=True)
@@ -94,9 +110,12 @@ def worker(conn,n,uncapped_exploration=False,map_audits=None):
             if full:
                 (target/(label+".bin")).write_bytes(tape)
             draft=target/(label+".tmp")
-            draft.write_text(json.dumps(dict(events=score.events, steps=score.decisions,
+            report=dict(events=score.events, steps=score.decisions,
                 first_visit_cells=len(score.cells), maps_first_reached=score.first_maps,
-                uncapped_exploration=uncapped_exploration),indent=2))
+                uncapped_exploration=uncapped_exploration)
+            if losses is not None:
+                report["whiteouts"]=losses.events
+            draft.write_text(json.dumps(report,indent=2))
             draft.replace(target/(label+".json"))
         conn.send(env.boot_image)
         while True:
@@ -106,6 +125,7 @@ def worker(conn,n,uncapped_exploration=False,map_audits=None):
                 env.load(env.boot)
                 episode+=1
                 score=Score(uncapped_exploration)
+                losses=WhiteoutLog() if log_whiteouts else None
                 tape=bytearray()
                 conn.send(env.boot_image)
             elif cmd=="act":
@@ -113,6 +133,8 @@ def worker(conn,n,uncapped_exploration=False,map_audits=None):
                 tape.append(arg)
                 old_maps=len(score.first_maps)
                 reward,done=score.read(env,key)
+                if losses is not None:
+                    losses.observe(env,len(tape))
                 if map_audits and len(score.first_maps)!=old_maps:
                     first_map_audit(map_audits/f"env-{n}"/f"episode-{episode:05}",
                                    next(reversed(score.first_maps)),audit)
@@ -131,13 +153,13 @@ def worker(conn,n,uncapped_exploration=False,map_audits=None):
 
 
 class PixelPool:
-    def __init__(self,count,uncapped_exploration=False,map_audits=None):
+    def __init__(self,count,uncapped_exploration=False,map_audits=None,log_whiteouts=False):
         self.pipes=[]
         self.processes=[]
         ctx=mp.get_context("spawn")
         for i in range(count):
             front,back=ctx.Pipe()
-            proc=ctx.Process(target=worker,args=(back,i,uncapped_exploration,map_audits),daemon=True)
+            proc=ctx.Process(target=worker,args=(back,i,uncapped_exploration,map_audits,log_whiteouts),daemon=True)
             proc.start()
             back.close()
             self.pipes.append(front)

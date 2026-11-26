@@ -102,6 +102,19 @@ python play_frozen_dreamer.py ADAPTATION/frozen-policy PARENT_EVALUATION FRESH_G
 
 The adaptation inherits its parent's exploration reward by default. To test the visit cap on self-earned trajectories that logged all visit rewards, add `--uncapped-training-exploration` to the training command and use a separate output directory. This retains the 0.02 reward for new cells after the first 50. The original images, actions, story rewards, optimization budget and frozen evaluation environment can be held identical.
 
+### Learning from battle losses
+
+`collect_outcome_branches.py` replays a verified self-earned game from boot, saves its final state inside the emulator worker, and runs independently seeded screen-based exploration from that state. It keeps every completed attempt in collection order. An external game log records when Emerald invokes its whiteout routine. The chooser learns from pixels, buttons and the original scalar reward.
+
+```bash
+python collect_outcome_branches.py --dataset EARNED_GAME --output ALL_ATTEMPTS \
+  --seed 260695 --branches 8 --steps-per-branch 8192
+python export_reward_branch.py ALL_ATTEMPTS VERIFIED_GAMES \
+  --record ALL_ATTEMPTS/discoveries/branch-000/record.json
+```
+
+The exporter independently replays each complete game from boot and checks the loss timings. To ablate a half-point training penalty, run two adaptations with the same verified datasets and update budget. Add `--whiteout-cost-cents 50` to one adaptation. Its learner receives the lower scalar reward on the observation after the triggering button. Pass `--log-whiteouts` to both frozen evaluations to measure losses in the original game. For review footage around a known decision, use `python pixel_replay.py GAME_JSON OUTPUT --decision BUTTON_NUMBER --video`.
+
 To measure how much an explicit visual memory can recover from the same games, run a separate self-imitation controller. It checks its expected next screen against the real image and retrieves a matching stored screen when possible. Using a different output directory and adding `--wait-every 257` tests recovery after input timing changes. Compare its resulting action tape to the training tapes to distinguish exact reproduction from new decisions.
 
 ```bash

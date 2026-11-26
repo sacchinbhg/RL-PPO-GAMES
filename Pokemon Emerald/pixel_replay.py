@@ -45,10 +45,15 @@ def host_path(path,binary):
     return str(path)
 
 
-def replay(audit,out,event,video,map_name=None):
+def replay(audit,out,event,video,map_name=None,decision=None):
     audit=audit.resolve()
     evidence=json.loads(audit.read_text())
-    if map_name is not None:
+    if decision is not None:
+        if event is not None or map_name is not None or not 1<=decision<=evidence["steps"]:
+            raise ValueError("A review decision must be in the recorded game and used on its own")
+        event_step=decision
+        label=f"decision-{decision}"
+    elif map_name is not None:
         if not any(map_name in group for group in MAPS):
             raise ValueError(f"Unknown Emerald map: {map_name}")
         event_step=evidence.get("maps_first_reached",{}).get(map_name)
@@ -121,6 +126,8 @@ def replay(audit,out,event,video,map_name=None):
                 starter=starter,maps_first_reached=observed.first_maps)
     if map_name is not None:
         result["checked_map"]=map_name
+    if decision is not None:
+        result["reviewed_decision"]=decision
     if video:
         binary=shutil.which("ffprobe") or shutil.which("ffprobe.exe")
         meta=json.loads(subprocess.check_output([binary,"-v","error","-show_entries",
@@ -140,6 +147,8 @@ if __name__=="__main__":
     goal=p.add_mutually_exclusive_group()
     goal.add_argument("--event")
     goal.add_argument("--map",dest="map_name",help="Verify the first original-ROM entry into a recorded map")
+    goal.add_argument("--decision",type=int,help="Capture a chosen button decision while replaying the recorded game")
     p.add_argument("--video",action="store_true")
     args=p.parse_args()
-    replay(args.audit,args.out,args.event or (None if args.map_name else "stone_badge"),args.video,args.map_name)
+    default_event=None if args.map_name is not None or args.decision is not None else "stone_badge"
+    replay(args.audit,args.out,args.event or default_event,args.video,args.map_name,args.decision)
