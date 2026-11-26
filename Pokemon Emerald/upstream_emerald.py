@@ -145,6 +145,9 @@ def main():
     parser.add_argument("--short-episode-envs", type=int, default=0,
                         help="During training, reset this many final workers at the shorter episode length")
     parser.add_argument("--short-episode-length", type=int, default=8192)
+    parser.add_argument("--earned-starts",type=Path,help="Verified self-earned reset bank for selected training workers")
+    parser.add_argument("--earned-start-envs",type=int,default=0,help="Number of final workers starting from self-earned training positions")
+    parser.add_argument("--initial-agent",type=Path,help="Load pinned initial agent weights into a new online training run")
     parser.add_argument("--batch",type=int,default=4)
     parser.add_argument("--length",type=int,default=16)
     parser.add_argument("--ratio",type=float,default=8.)
@@ -156,6 +159,20 @@ def main():
     parser.add_argument("--retain-reward-windows", action="store_true",
                         help="Keep bounded self-earned reward sequences for use after FIFO eviction")
     args=parser.parse_args()
+    if bool(args.earned_start_envs) != bool(args.earned_starts) or not 0 <= args.earned_start_envs <= args.envs:
+        parser.error("Specify a verified reset bank and a positive number of earned-start training workers together")
+    if args.earned_start_envs and (args.evaluate or not args.uncapped_exploration):
+        parser.error("Earned starts are training-only and require their original uncapped visit rewards")
+    initial_sha=None
+    if args.initial_agent:
+        if args.evaluate or not (args.initial_agent/"done").is_file() or not (args.initial_agent/"agent.pkl").is_file():
+            parser.error("Initial online weights require a completed training checkpoint and a training run")
+        initial_sha=hashlib.sha256((args.initial_agent/"agent.pkl").read_bytes()).hexdigest()
+    start_identity=None
+    if args.earned_start_envs:
+        from earned_starts import EarnedStarts
+        info=EarnedStarts(args.earned_starts).info
+        start_identity=dict(source_sha256=info["source_sha256"],snapshot_sha256=[s["sha256"] for s in info["starts"]])
     if not 0 <= args.short_episode_envs <= args.envs:
         parser.error("short episode worker count must fit the number of environments")
     if args.short_episode_envs and (args.evaluate or not 0 < args.short_episode_length < args.episode):
@@ -207,7 +224,10 @@ def main():
         upstream.make_replay = make_reward_replay
     class Adapter(embodied.Env):
         def __init__(self,index):
-            self.pool=PixelPool(1, args.uncapped_exploration)
+            earned_worker=index-(args.envs-args.earned_start_envs)
+            starts=args.earned_starts if earned_worker>=0 else None
+            start_offset=max(0,earned_worker)*len(start_identity["snapshot_sha256"])//args.earned_start_envs if starts is not None else 0
+            self.pool=PixelPool(1,args.uncapped_exploration,earned_starts=starts,start_offset=start_offset)
             self.index=index
             self.done=True
             self.age=0
@@ -256,9 +276,18 @@ def main():
     settings["screen_exploration_envs"] = args.screen_exploration_envs
     settings["short_episode_envs"] = args.short_episode_envs
     settings["worker_episode_lengths"] = worker_lengths
+    if start_identity:
+        settings.update(earned_start_envs=args.earned_start_envs,earned_training_starts=start_identity)
+    if initial_sha:
+        settings["initial_agent_sha256"]=initial_sha
     provenance = log / "provenance.json"
     if provenance.exists():
         previous = json.loads(provenance.read_text())
+        if previous.get("initial_agent_sha256")!=initial_sha:
+            raise ValueError("Use a new training directory when changing initial weights")
+        if (previous.get("earned_start_envs",0)!=args.earned_start_envs
+                or previous.get("earned_training_starts")!=start_identity):
+            raise ValueError("Use a new training directory when changing self-earned resets")
         if (previous.get("short_episode_envs", 0) != args.short_episode_envs
                 or args.short_episode_envs and previous.get("worker_episode_lengths") != worker_lengths):
             raise ValueError("Use a new training directory for a different worker reset schedule")
@@ -296,6 +325,8 @@ def main():
             upstream.main(options)
             verify_evaluation_win(log, checkpoint_info)
         else:
+            if args.initial_agent:
+                options+=["--run.from_checkpoint",str(args.initial_agent.resolve())]
             train_through_budget(upstream, options, elements, log, args.steps)
 
 

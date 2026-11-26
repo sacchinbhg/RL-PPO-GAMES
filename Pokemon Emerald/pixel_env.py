@@ -100,7 +100,7 @@ def first_map_audit(parent, name, write):
         draft.rename(target)
 
 
-def worker(conn,n,uncapped_exploration=False,map_audits=None,log_whiteouts=False):
+def worker(conn,n,uncapped_exploration=False,map_audits=None,log_whiteouts=False,earned_starts=None,start_offset=0):
     env=None
     try:
         env=Emerald(*game_paths())
@@ -108,6 +108,13 @@ def worker(conn,n,uncapped_exploration=False,map_audits=None,log_whiteouts=False
         score=Score(uncapped_exploration)
         losses=WhiteoutLog() if log_whiteouts else None
         tape=bytearray()
+        bank=None
+        prefix=0
+        if earned_starts is not None:
+            from earned_starts import EarnedStarts
+            if not uncapped_exploration:
+                raise ValueError("Earned training starts were recorded with uncapped visit rewards")
+            bank=EarnedStarts(earned_starts)
         def audit(target,full=True):
             target.mkdir(parents=True,exist_ok=True)
             label=f"worker-{n:02}-episode-{episode:05}"
@@ -117,6 +124,9 @@ def worker(conn,n,uncapped_exploration=False,map_audits=None,log_whiteouts=False
             report=dict(events=score.events, steps=score.decisions,
                 first_visit_cells=len(score.cells), maps_first_reached=score.first_maps,
                 uncapped_exploration=uncapped_exploration)
+            if bank is not None:
+                report.update(training_only=True,earned_start_prefix=prefix,
+                              earned_source_sha256=bank.info["source_sha256"],steps_since_training_reset=len(tape)-prefix)
             if losses is not None:
                 report["whiteouts"]=losses.events
                 report["maps_after_whiteout"]=losses.maps_after
@@ -127,12 +137,17 @@ def worker(conn,n,uncapped_exploration=False,map_audits=None,log_whiteouts=False
             cmd,arg=conn.recv()
             if cmd=="close":break
             if cmd=="reset":
-                env.load(env.boot)
                 episode+=1
-                score=Score(uncapped_exploration)
+                if bank is None:
+                    env.load(env.boot)
+                    score=Score(uncapped_exploration)
+                    tape=bytearray()
+                    picture=env.boot_image
+                else:
+                    picture,score,tape=bank.restore(env,start_offset+n+episode-1)
+                    prefix=len(tape)
                 losses=WhiteoutLog() if log_whiteouts else None
-                tape=bytearray()
-                conn.send(env.boot_image)
+                conn.send(picture)
             elif cmd=="act":
                 pic,key=env.step(arg)
                 tape.append(arg)
@@ -158,13 +173,13 @@ def worker(conn,n,uncapped_exploration=False,map_audits=None,log_whiteouts=False
 
 
 class PixelPool:
-    def __init__(self,count,uncapped_exploration=False,map_audits=None,log_whiteouts=False):
+    def __init__(self,count,uncapped_exploration=False,map_audits=None,log_whiteouts=False,earned_starts=None,start_offset=0):
         self.pipes=[]
         self.processes=[]
         ctx=mp.get_context("spawn")
         for i in range(count):
             front,back=ctx.Pipe()
-            proc=ctx.Process(target=worker,args=(back,i,uncapped_exploration,map_audits,log_whiteouts),daemon=True)
+            proc=ctx.Process(target=worker,args=(back,i,uncapped_exploration,map_audits,log_whiteouts,earned_starts,start_offset),daemon=True)
             proc.start()
             back.close()
             self.pipes.append(front)

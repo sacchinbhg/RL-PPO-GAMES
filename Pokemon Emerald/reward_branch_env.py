@@ -34,7 +34,7 @@ class TileVisitReward:
         return cents
 
 
-def _worker(pipe, map_audits=None, log_whiteouts=False, shared_visit_reward=False, trainer_audits=None, tile_visit_reward=False):
+def _worker(pipe, map_audits=None, log_whiteouts=False, shared_visit_reward=False, trainer_audits=None, tile_visit_reward=False, earned_starts=None):
     from emerald import Emerald
     from pixel_env import Score, WhiteoutLog, first_map_audit, game_paths
 
@@ -47,6 +47,12 @@ def _worker(pipe, map_audits=None, log_whiteouts=False, shared_visit_reward=Fals
         picture, tape, total, terminal = game.boot_image, bytearray(), 0, False
         slots = {}
         losses=WhiteoutLog() if log_whiteouts else None
+        bank=None
+        if earned_starts is not None:
+            from earned_starts import EarnedStarts
+            if tile_visit_reward or log_whiteouts:
+                raise ValueError("This reset bank contains coarse visit rewards and ordinary game history")
+            bank=EarnedStarts(earned_starts)
         if map_audits:
             map_audits.mkdir(parents=True, exist_ok=True)
         saved_maps = set()
@@ -113,6 +119,16 @@ def _worker(pipe, map_audits=None, log_whiteouts=False, shared_visit_reward=Fals
                         break
                 total += original_reward
                 response = picture, reward, terminal, used
+            elif command == "earned_start":
+                if bank is None or not 0 <= arg < len(bank.records):
+                    raise ValueError("Invalid self-earned training start")
+                picture,score,tape=bank.restore(game,arg)
+                total=bank.records[arg]["scalar_return_cents"]
+                terminal=False
+                if visit_reward is not None:
+                    visit_reward.paid.update(score.cells)
+                saved_maps.update(score.first_maps)
+                response=picture
             elif command == "save":
                 slots[arg] = game.save(), copy.deepcopy(score), picture.copy(), bytes(tape), total, terminal, copy.deepcopy(losses)
                 response = True
@@ -137,10 +153,10 @@ def _worker(pipe, map_audits=None, log_whiteouts=False, shared_visit_reward=Fals
 
 
 class ForkEnv:
-    def __init__(self, map_audits=None, log_whiteouts=False, shared_visit_reward=False, trainer_audits=None, tile_visit_reward=False):
+    def __init__(self, map_audits=None, log_whiteouts=False, shared_visit_reward=False, trainer_audits=None, tile_visit_reward=False, earned_starts=None):
         ctx = mp.get_context("spawn")
         self.pipe, back = ctx.Pipe()
-        self.process = ctx.Process(target=_worker, args=(back,map_audits,log_whiteouts,shared_visit_reward,trainer_audits,tile_visit_reward), daemon=True)
+        self.process = ctx.Process(target=_worker, args=(back,map_audits,log_whiteouts,shared_visit_reward,trainer_audits,tile_visit_reward,earned_starts), daemon=True)
         self.process.start()
         back.close()
         self.initial = self.receive()

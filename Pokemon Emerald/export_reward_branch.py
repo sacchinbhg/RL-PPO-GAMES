@@ -15,12 +15,16 @@ def export(run, out, record_path=None):
     if not record_path.resolve().is_relative_to(run.resolve()):
         raise ValueError("Discovery record outside the training run")
     record = json.loads(record_path.read_text())
-    if not (settings["training_forks"] and record["training_only"] and not settings["receives_saves_from_other_runs"]):
+    if not (settings["training_forks"] and record["training_only"]):
         raise ValueError("Expected a self-generated training branch")
     source = (run / record["audit"]).resolve()
     if not source.is_relative_to((run / "discoveries").resolve()):
         raise ValueError("Training tape outside the branch archive")
     tape = (source / "game.bin").read_bytes()
+    if settings["receives_saves_from_other_runs"]:
+        from earned_starts import verified_reset_lineage
+        if not verified_reset_lineage(run,settings,tape):
+            raise ValueError("The training branch cannot be traced to verified self-earned resets")
     if hashlib.sha256(tape).hexdigest() != record["tape_sha256"] or len(tape) != record["length"]:
         raise ValueError("Training tape checksum or length mismatch")
     audit = json.loads((source / "game.json").read_text())

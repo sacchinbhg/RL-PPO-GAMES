@@ -1,6 +1,6 @@
 """A frozen self-imitation controller that checks predicted screens against the live emulator."""
 import argparse
-from collections import Counter, defaultdict
+from collections import Counter, defaultdict, deque
 import hashlib
 import json
 from pathlib import Path
@@ -56,8 +56,9 @@ def fit(datasets, output):
 
 
 class Memory:
-    def __init__(self, directory, seed):
+    def __init__(self, directory, seed, allow_approximate=True, escape_loops=False):
         self.seed=seed
+        self.allow_approximate=allow_approximate
         self.rng=np.random.default_rng(seed)
         self.identity=json.loads((directory/"fit.json").read_text())
         if self.identity["model_sha256"]!=digest(directory/"model.npz"):
@@ -74,9 +75,21 @@ class Memory:
         self.expected=None
         self.phase=0
         self.usage=Counter()
+        self.recent_locations=deque(maxlen=32) if escape_loops else None
+        self.recovery_remaining=0
+        self.recovery_count=0
+        self.first_recovery=None
+
+    def recovery_action(self):
+        self.current=self.expected=None
+        self.recovery_remaining-=1
+        self.usage["loop_recovery"]+=1
+        return int(self.rng.integers(9))
 
     def choose(self, frame, incoming):
         self.phase+=int(incoming>=.25)
+        if self.recovery_remaining:
+            return self.recovery_action()
         exact,feature=encode(frame)
         def usable(j,t):
             trace=self.traces[j]
@@ -106,7 +119,7 @@ class Memory:
                     return (j==prior,-abs(t-pos) if j==prior else 0,float(trace["value"][t]),-t)
                 location=max(matches,key=rank)
                 mode="retrieved_matching_screen"
-        if location is None and self.expected is not None:
+        if self.allow_approximate and location is None and self.expected is not None:
             j,t=self.expected
             trace=self.traces[j]
             nearby=[k for k in range(t-4,t+7) if usable(j,k)]
@@ -117,6 +130,15 @@ class Memory:
                 if residual[best]<=1.5:
                     location=(j,nearby[best])
                     mode="close_visual_prediction"
+        if self.recent_locations is not None:
+            self.recent_locations.append(location)
+            if location is not None and self.recent_locations.count(location)>=8:
+                self.recent_locations.clear()
+                self.recovery_remaining=16
+                self.recovery_count+=1
+                if self.first_recovery is None:
+                    self.first_recovery=sum(self.usage.values())+1
+                return self.recovery_action()
         self.current=location
         if location is None:
             self.usage["unknown_screen"]+=1
@@ -132,17 +154,25 @@ class Memory:
             self.expected=(j,t+int(button==self.traces[j]["buttons"][t]))
 
 
-def play(directory, output, seed, limit, delay):
+def play(directory, output, seed, limit, delay, allow_approximate=True, escape_loops=False, compare_on_same_frames=False):
     from pixel_env import PixelPool
     import subprocess
     import sys
     if limit<1 or delay<0:
         raise ValueError("Expected positive evaluation length and nonnegative perturbation interval")
     output.mkdir(parents=True,exist_ok=True)
-    agent=Memory(directory,seed)
+    agent=Memory(directory,seed,allow_approximate,escape_loops)
+    shadow=Memory(directory,seed,allow_approximate,not escape_loops) if compare_on_same_frames else None
+    first_changed_choice=None
     config=dict(model_sha256=agent.identity["model_sha256"],seed=seed,button_budget=limit,
                 external_wait_interval=delay,training_updates=0,in_game_restores=0,
                 controller="frozen screen-conditioned self-imitation memory")
+    if not allow_approximate:
+        config["allow_approximate_visual_matches"]=False
+    if escape_loops:
+        config["retrieval_loop_recovery"]=dict(window=32,visits_to_same_memory_position=8,exploratory_buttons=16)
+    if compare_on_same_frames:
+        config["compare_opposite_loop_setting_on_identical_observations"]=True
     setup=output/"provenance.json"
     if setup.exists():
         if json.loads(setup.read_text())!=config:
@@ -159,6 +189,17 @@ def play(directory, output, seed, limit, delay):
         for n in range(1,limit+1):
             proposed=agent.choose(frame,reward)
             actual=0 if delay and n%delay==0 else proposed
+            if shadow is not None:
+                alternative=shadow.choose(frame,reward)
+                if alternative!=proposed:
+                    first_trigger=(agent if escape_loops else shadow).first_recovery
+                    if first_trigger is None or first_trigger>n:
+                        raise RuntimeError("Memory choices diverged on identical observations before a recovery")
+                    first_changed_choice=dict(decision=n,active_button=proposed,alternative=alternative,
+                                              first_recovery=first_trigger,matching_prior_choices=n-1)
+                    shadow=None
+                else:
+                    shadow.executed(actual)
             interventions+=int(actual!=proposed)
             agent.executed(actual)
             frame,reward,done=env.command(0,"act",actual)
@@ -167,6 +208,10 @@ def play(directory, output, seed, limit, delay):
                 env.command(0,"audit",str(dest))
             if n%1024==0 or reward>=1 or n==limit or done:
                 status=dict(decisions=n,action_sources=dict(agent.usage),changed_actions=interventions)
+                if escape_loops:
+                    status.update(recoveries=agent.recovery_count,first_recovery=agent.first_recovery)
+                if compare_on_same_frames:
+                    status["first_changed_choice_on_same_frames"]=first_changed_choice
                 write_json(output/"status.json",status)
             if done:
                 audit,=dest.glob("*.json")
@@ -186,6 +231,8 @@ if __name__=="__main__":
     parser.add_argument("--seed",type=int,default=197461)
     parser.add_argument("--limit",type=int,default=65536)
     parser.add_argument("--wait-every",type=int,default=0,help="Insert generic wait actions in a separate robustness trial")
+    parser.add_argument("--exact-only",action="store_true",help="Allow only exact RGB matches when retrieving self-earned actions")
+    parser.add_argument("--escape-loops",action="store_true",help="Try exploratory buttons after repeatedly retrieving the same training position")
     args=parser.parse_args()
     fit(args.dataset,args.model)
-    play(args.model,args.output,args.seed,args.limit,args.wait_every)
+    play(args.model,args.output,args.seed,args.limit,args.wait_every,not args.exact_only,args.escape_loops)

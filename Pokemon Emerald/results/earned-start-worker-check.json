@@ -1,0 +1,25 @@
+{
+  "starts": [
+    {
+      "prefix": 15853,
+      "successor_buttons": 32,
+      "total_replay_buttons": 15885
+    },
+    {
+      "prefix": 20681,
+      "successor_buttons": 32,
+      "total_replay_buttons": 20713
+    },
+    {
+      "prefix": 35165,
+      "successor_buttons": 32,
+      "total_replay_buttons": 35197
+    },
+    {
+      "prefix": 39993,
+      "successor_buttons": 32,
+      "total_replay_buttons": 40025
+    }
+  ],
+  "bank_successor_checks": 256
+}

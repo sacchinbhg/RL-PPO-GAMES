@@ -1,0 +1,11 @@
+{
+  "model_sha256": "da17ef65887882f1de8bf26d76d53cb166b4d588ca22641b34a66124d9c22c71",
+  "training_tape": "24479561ff0b9fe07b3932aeb611e70d3b7b7f4b42a9f6fe428cea84e19fa412",
+  "original_advancing_frames_with_identical_choices": 512,
+  "real_training_image_index": 6,
+  "deliberate_fixed_image_repeats": 64,
+  "first_recovery": 8,
+  "first_changed_choice": 8,
+  "recovery_actions": 43,
+  "heldout_game_progress_measured": false
+}
