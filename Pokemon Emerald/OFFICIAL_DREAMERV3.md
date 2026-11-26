@@ -221,3 +221,7 @@ The `--reward-sweep --scroll-slots 128` option reserves 128 of the available slo
 ### Diagnose repeated actions in visual self-imitation
 
 The optional `earned_memory.py --escape-loops` setting counts retrievals of the same training position. Eight retrievals within 32 decisions trigger 16 exploratory buttons. The agent can repeat a button while advancing through different memory positions. In a fixed-image diagnostic the recovery changed the eighth choice. Both policies made identical choices on 512 advancing training observations. Gameplay progress is measured separately in uninterrupted fresh games. [Mechanism test](results/memory-loop-mechanism.json)
+
+### Resume an interrupted reward search
+
+`reward_branch_search.py` reconstructs its best saved game by replaying its buttons from a fresh boot, checking the final image and return. It starts the next branch from its recorded work and branch counts, including attempts made after the best game was first saved. The live archive and empirical model are rebuilt. The search now saves each new highest return, including small first-visit rewards. In a regression check it reconstructed 2,804 decisions and then charged precisely 32 new ones to the existing budget. [Restart accounting check](results/search-restart-accounting.json)

@@ -116,10 +116,14 @@ def train(directory, seed, budget, visual_slots=0):
     write_json(setup, settings)
     summary = directory / "best.json"
     old = json.loads(summary.read_text()) if summary.exists() else None
-    rng = np.random.default_rng([seed, old["work"] if old else 0])
+    status_path = directory / "status.json"
+    prior = json.loads(status_path.read_text()) if status_path.exists() else {}
+    work = max(prior.get("work", 0), old["work"] if old else 0)
+    branches = max(prior.get("branches", 0), old["branches"] if old else 0)
+    historical_peak = max(prior.get("historical_peak_cents", 0), prior.get("best_return_cents", 0))
+    rng = np.random.default_rng([seed, work])
     model = ScreenExplorer(rng)
     env = ForkEnv(directory/"first-maps")
-    work = branches = 0
     started = time.monotonic()
     try:
         archive = Archive(env, rng, visual_slots)
@@ -146,7 +150,6 @@ def train(directory, seed, budget, visual_slots=0):
                 raise RuntimeError("Cold boot failed to reproduce the self-earned training prefix")
             if terminal:
                 return
-            work, branches = old["work"], old["branches"]
             best = last_saved = total
         initial_work = work
         while work < budget:
@@ -167,7 +170,7 @@ def train(directory, seed, budget, visual_slots=0):
                 elif visual_slots and work // 64 != (work - used) // 64:
                     archive.offer_visual(point, model.visits, best)
                 best = max(total, best)
-                if (total == best and total >= last_saved + 50) or terminal:
+                if (total == best and total > last_saved) or terminal:
                     relative = f"discoveries/work-{work:010d}"
                     target = directory / relative
                     env.command("audit", str(target))
@@ -181,8 +184,9 @@ def train(directory, seed, budget, visual_slots=0):
                 if terminal:
                     return
             archive.offer(point, recent=True)
-            write_json(directory / "status.json", dict(work=work, branches=branches,
+            write_json(status_path, dict(work=work, branches=branches,
                        best_return_cents=best, latest_path_length=length, slots=len(archive.points),
+                       historical_peak_cents=max(historical_peak,best),
                        distinct_screen_codes=len(model.visits),
                        steps_per_second=(work - initial_work) / (time.monotonic() - started)))
     finally:
