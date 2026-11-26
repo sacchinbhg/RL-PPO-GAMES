@@ -1,15 +1,42 @@
 """Verify a clean original-ROM episode from boot and optionally render its real gameplay."""
 import argparse
 import hashlib
+from itertools import permutations
 import json
 import os
 from pathlib import Path
 import shutil
+import struct
 import subprocess
 
 from PIL import Image
 from emerald import BUTTON_IDS, Emerald, REPEAT, ROM_SHA1, verify_rom
 from pixel_env import Score, game_paths
+
+
+STARTERS = {277: "Treecko", 280: "Torchic", 283: "Mudkip"}
+GROWTH_BLOCK = tuple(order.index(0) for order in permutations(range(4)))
+
+
+def verify_starter(env, decision):
+    """Independently identify the first party member and the game's starter-choice variable."""
+    mon = env.ram(0x020244ec, 100)
+    personality, trainer_id = struct.unpack_from("<II", mon)
+    key = personality ^ trainer_id
+    secure = struct.pack("<12I", *(word ^ key for word in struct.unpack_from("<12I", mon, 32)))
+    checksum, = struct.unpack_from("<H", mon, 28)
+    if sum(struct.unpack("<24H", secure)) % 65536 != checksum:
+        raise ValueError("First party member has an invalid checksum")
+    species, = struct.unpack_from("<H", secure, 12 * GROWTH_BLOCK[personality % 24])
+    save = int.from_bytes(env.ram(0x03005d8c, 4), "little")
+    choice = int.from_bytes(env.ram(save + 0x139c + 2 * 0x23, 2), "little")
+    if choice >= 3 or species != (277, 280, 283)[choice]:
+        raise ValueError(f"Party species {species} does not match the starter choice {choice}")
+    count = env.ram(0x020244e9, 1)[0]
+    if not 1 <= count <= 6 or not 5 <= mon[84] <= 100:
+        raise ValueError("Invalid party count or level at starter acquisition")
+    return dict(decision=decision, species_id=species, species_name=STARTERS[species],
+                level=mon[84], party_count=count, checksum=checksum)
 
 
 def host_path(path,binary):
@@ -43,7 +70,7 @@ def replay(audit,out,event,video):
             "-crf","16","-movflags","+faststart",host_path(temp,binary)],stdin=subprocess.PIPE)
     g=Emerald(str(core),str(rom))
     observed=Score(evidence.get("uncapped_exploration", False))
-    fight=badge_at=None
+    fight=badge_at=starter=None
     read=lambda a,n:int.from_bytes(g.ram(a,n),"little")
     try:
         g.load(g.boot)
@@ -58,6 +85,8 @@ def replay(audit,out,event,video):
                 key=g.descriptor()
             else:_,key=g.step(a)
             observed.read(g,key)
+            if n == evidence["events"].get("starter"):
+                starter = verify_starter(g, n)
             if key[0]==6 and (read(0x02022fec,4)&8) and read(0x02038bca,2)==265:
                 if fight is None:fight=n
                 if n==fight+36:Image.fromarray(g.screen).save(out/"roxanne-battle.png")
@@ -77,7 +106,8 @@ def replay(audit,out,event,video):
     result=dict(source_audit=str(audit),checked_event=event,verified_decision=event_step,
                 verified_events=observed.events,buttons=len(tape),fresh_boot=True,restores_during_game=0,
                 rom_sha1=ROM_SHA1,core_sha256=hashlib.sha256(core.read_bytes()).hexdigest(),
-                input_sha256=hashlib.sha256(tape).hexdigest(),roxanne_battle=fight,stone_badge=badge_at)
+                input_sha256=hashlib.sha256(tape).hexdigest(),roxanne_battle=fight,stone_badge=badge_at,
+                starter=starter)
     if video:
         binary=shutil.which("ffprobe") or shutil.which("ffprobe.exe")
         meta=json.loads(subprocess.check_output([binary,"-v","error","-show_entries",
