@@ -101,7 +101,7 @@ def write_json(path, value):
     draft.replace(path)
 
 
-def train(datasets, parent, output, upstream_source, updates):
+def train(datasets, parent, output, upstream_source, updates, uncapped_training=False):
     import elements
     import jax
     from ruamel.yaml import YAML
@@ -115,10 +115,11 @@ def train(datasets, parent, output, upstream_source, updates):
     from dreamerv3 import main as upstream
     from embodied.jax import internal
     games = [Trajectory(path) for path in datasets]
-    for game in games:
-        for _ in game.episode():
-            pass
     provenance = json.loads((parent / "provenance.json").read_text())
+    uncapped = uncapped_training or provenance.get("uncapped_exploration",False)
+    for game in games:
+        for _ in game.episode(uncapped):
+            pass
     weights = parent / "frozen-policy/agent.pkl"
     if provenance["agent_sha256"] != digest(weights):
         raise ValueError("Parent checkpoint checksum mismatch")
@@ -126,8 +127,10 @@ def train(datasets, parent, output, upstream_source, updates):
     plan = dict(upstream_revision=source_sha, parent_sha256=provenance["agent_sha256"],
                 parent_training_steps=provenance["training_step"], additional_emulator_steps=0,
                 training_tapes=[t.source["source_sha256"] for t in games], training_lengths=[len(t.tape) for t in games],
-                uncapped_exploration=provenance.get("uncapped_exploration",False), optimizer_updates=updates,
+                uncapped_exploration=uncapped, optimizer_updates=updates,
                 sampling="one chronological lane per earned training episode, starting at boot and cycling at its end")
+    if uncapped_training:
+        plan["exploration_reward_override"]="keep every earned first-visit reward during adaptation"
     if len(games) > 1:
         common = next((i for i, choices in enumerate(zip(*(g.tape for g in games)))
                        if len(set(choices)) != 1), min(len(g.tape) for g in games))
@@ -216,6 +219,8 @@ if __name__ == "__main__":
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--upstream", type=Path, required=True)
     parser.add_argument("--updates", type=int, required=True)
+    parser.add_argument("--uncapped-training-exploration", action="store_true",
+                        help="Keep exploration rewards after the first 50 visited cells during adaptation")
     args = parser.parse_args()
     train([p.resolve() for p in args.dataset], args.source_run.resolve(), args.output.resolve(),
-          args.upstream.resolve(), args.updates)
+          args.upstream.resolve(), args.updates, args.uncapped_training_exploration)

@@ -100,6 +100,8 @@ python play_frozen_dreamer.py ADAPTATION/frozen-policy PARENT_EVALUATION FRESH_G
   --upstream /opt/emerald-rl/source --limit 65536
 ```
 
+The adaptation inherits its parent's exploration reward by default. To test the visit cap on self-earned trajectories that logged all visit rewards, add `--uncapped-training-exploration` to the training command and use a separate output directory. This retains the 0.02 reward for new cells after the first 50. The original images, actions, story rewards, optimization budget and frozen evaluation environment can be held identical.
+
 To measure how much an explicit visual memory can recover from the same games, run a separate self-imitation controller. It checks its expected next screen against the real image and retrieves a matching stored screen when possible. Using a different output directory and adding `--wait-every 257` tests recovery after input timing changes. Compare its resulting action tape to the training tapes to distinguish exact reproduction from new decisions.
 
 ```bash
