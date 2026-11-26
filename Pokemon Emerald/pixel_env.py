@@ -75,13 +75,17 @@ class WhiteoutLog:
     def __init__(self):
         self.active=False
         self.events=[]
+        self.maps_after=[]
 
-    def observe(self,game,decision):
+    def observe(self,game,decision,key=None):
         callback=int.from_bytes(game.ram(0x030022c4,4),"little")&~1
         active=callback==0x08085f58
         if active and not self.active:
             outcome=int.from_bytes(game.ram(0x0202433a,1),"little")
             self.events.append(dict(decision=decision,outcome=outcome))
+            self.maps_after.append({})
+        if self.maps_after and key is not None and key[0]==5 and game.verified_story(key) is not None:
+            self.maps_after[-1].setdefault(MAPS[key[1]][key[2]],decision)
         self.active=active
 
 
@@ -115,6 +119,7 @@ def worker(conn,n,uncapped_exploration=False,map_audits=None,log_whiteouts=False
                 uncapped_exploration=uncapped_exploration)
             if losses is not None:
                 report["whiteouts"]=losses.events
+                report["maps_after_whiteout"]=losses.maps_after
             draft.write_text(json.dumps(report,indent=2))
             draft.replace(target/(label+".json"))
         conn.send(env.boot_image)
@@ -134,7 +139,7 @@ def worker(conn,n,uncapped_exploration=False,map_audits=None,log_whiteouts=False
                 old_maps=len(score.first_maps)
                 reward,done=score.read(env,key)
                 if losses is not None:
-                    losses.observe(env,len(tape))
+                    losses.observe(env,len(tape),key)
                 if map_audits and len(score.first_maps)!=old_maps:
                     first_map_audit(map_audits/f"env-{n}"/f"episode-{episode:05}",
                                    next(reversed(score.first_maps)),audit)

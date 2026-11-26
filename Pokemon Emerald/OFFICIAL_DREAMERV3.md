@@ -153,3 +153,7 @@ Run two fresh boots with the same frozen visual memory. When both games reach th
 python extend_earned_route.py --model MEMORY --checkpoint ADAPTATION/frozen-policy \
   --parent PARENT_EVALUATION --upstream /opt/emerald-rl/source --output EXTENSION --limit 65536
 ```
+
+Add `--visual-route-recovery` with a new output directory to test whether the player can recover after losing its way. The controller builds a directed graph from consecutive RGB observations and buttons in its own training games. It estimates the cost of revisiting screens that appeared late in its highest-return game. After 256 decisions without a reward of at least 0.25, a familiar early screen can trigger a return attempt of up to 512 decisions. The actual next screen determines whether the suggested button worked. Dreamer resumes control when the route ends or its suggestions run out. The game continues throughout.
+
+The comparison records the first button changed by recovery. Use the same seed and checkpoint for the ordinary two-game run and check that its uniform control matches button for button. A separate audit records maps visited after each whiteout to measure whether the player independently regains ground.
