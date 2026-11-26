@@ -39,6 +39,8 @@ The first training blocks used the sequential upstream driver. Add `--parallel-e
 
 ## Exploration experiments
 
+For a mix of short and long training games, pass `--short-episode-envs 2 --short-episode-length 8192` with `--envs 4 --episode 65536`. The final two workers return to boot after 8,192 decisions. The first two can continue for 65,536. This keeps opening screens arriving in replay while longer games can reach subsequent events. Short-worker settings are recorded in provenance and rejected during frozen evaluation.
+
 With four environments, `--screen-exploration-envs 2` gives the first two training games to an online pixel explorer. It estimates which screens each button leads to and favors unfamiliar outcomes and past scalar rewards. Its memory starts empty at each fresh boot. The other two games use the upstream Dreamer actor. The official learner trains its world model and imagined actor from the real actions taken in all four games. The collector has access to RGB, scalar rewards and episode boundaries. Training seeds are separate from the discovery and evaluation seeds.
 
 For a matched comparison, resume two copies of the same ordinary learner and replay, use the same episode length and interaction budget, and enable the collector on just one copy. For frozen gameplay evaluation omit the collection option on both arms. The evaluator enforces zero exploration workers. A training milestone on a screen-controlled worker establishes that the learner had access to that experience. A fresh evaluation establishes how far the neural policy gets on its own.

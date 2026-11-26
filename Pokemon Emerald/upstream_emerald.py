@@ -142,6 +142,9 @@ def main():
                         help="Use the upstream parallel emulator driver")
     parser.add_argument("--seed",type=int,default=71299)
     parser.add_argument("--episode",type=int,default=8192)
+    parser.add_argument("--short-episode-envs", type=int, default=0,
+                        help="During training, reset this many final workers at the shorter episode length")
+    parser.add_argument("--short-episode-length", type=int, default=8192)
     parser.add_argument("--batch",type=int,default=4)
     parser.add_argument("--length",type=int,default=16)
     parser.add_argument("--ratio",type=float,default=8.)
@@ -153,6 +156,11 @@ def main():
     parser.add_argument("--retain-reward-windows", action="store_true",
                         help="Keep bounded self-earned reward sequences for use after FIFO eviction")
     args=parser.parse_args()
+    if not 0 <= args.short_episode_envs <= args.envs:
+        parser.error("short episode worker count must fit the number of environments")
+    if args.short_episode_envs and (args.evaluate or not 0 < args.short_episode_length < args.episode):
+        parser.error("short episodes require training and a positive length below the ordinary episode length")
+    worker_lengths = [args.episode] * (args.envs-args.short_episode_envs) + [args.short_episode_length] * args.short_episode_envs
     if not 0 <= args.screen_exploration_envs <= args.envs:
         parser.error("screen exploration worker count must be between zero and the number of environments")
     if args.evaluate and args.screen_exploration_envs:
@@ -218,7 +226,7 @@ def main():
                 pics,rews,ends=self.pool.step([int(act["action"])])
                 pic,reward,terminal=pics[0],float(rews[0]),bool(ends[0])
                 self.age+=1
-            self.done=terminal or self.age>=args.episode
+            self.done=terminal or self.age>=worker_lengths[self.index]
             if self.done:
                 self.pool.command(0,"audit",str(args.logdir.resolve()/"external-audit"/self.session/f"env-{self.index}"))
             elif self.age and (self.age % 8192 == 0 or reward >= 4):
@@ -243,9 +251,14 @@ def main():
                   reward_replay_fraction=args.reward_replay_fraction,retain_reward_windows=args.retain_reward_windows,
                   parallel_envs=args.parallel_envs)
     settings["screen_exploration_envs"] = args.screen_exploration_envs
+    settings["short_episode_envs"] = args.short_episode_envs
+    settings["worker_episode_lengths"] = worker_lengths
     provenance = log / "provenance.json"
     if provenance.exists():
         previous = json.loads(provenance.read_text())
+        if (previous.get("short_episode_envs", 0) != args.short_episode_envs
+                or args.short_episode_envs and previous.get("worker_episode_lengths") != worker_lengths):
+            raise ValueError("Use a new training directory for a different worker reset schedule")
         if previous.get("screen_exploration_envs", 0) != args.screen_exploration_envs:
             raise ValueError("Use a separate training directory when changing screen exploration workers")
         if previous.get("discount_horizon", 333) != args.discount_horizon:

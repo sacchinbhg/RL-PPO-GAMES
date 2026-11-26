@@ -100,7 +100,14 @@ def play(checkpoint, source_run, directory, limit, reference, source):
             buttons = policy(images, rewards, step == 1)
             # Historical buttons are read only AFTER the actor has chosen. A mismatch stops the test.
             if ref and step <= len(ref[0]):
-                assert all(int(buttons[i]) == ref[i][step-1] for i in range(4)), (step, buttons)
+                different = [i for i in range(4) if int(buttons[i]) != ref[i][step-1]]
+                if different:
+                    failure = dict(decision=step, matched_through=step-1, workers=different,
+                                   recorded=[t[step-1] for t in ref], selected=list(map(int, buttons)))
+                    for i in different:
+                        pool.command(i, "audit", str(directory/"mismatch"/f"env-{i}"))
+                    write_json(directory/"prefix-mismatch.json", failure)
+                    raise ValueError(f"Reference mismatch at decision {step} on workers {different}")
                 verified_prefix = step
             images, rewards, done = pool.step(buttons)
             if step == limit or done.any() or step % 8192 == 0 or (rewards >= 4).any():
