@@ -1,6 +1,7 @@
 """Run the pinned Dreamer policy directly on the WSL GPU and verify its recorded prefixes."""
 import argparse
 import hashlib
+import itertools
 import json
 from pathlib import Path
 import pickle
@@ -65,14 +66,18 @@ def load_actor(checkpoint, source_run, seed, source):
     return decide
 
 
-def play(checkpoint, source_run, directory, limit, reference, source):
+def play(checkpoint, source_run, directory, limit, reference, source, eval_seed=None):
     directory.mkdir(parents=True, exist_ok=True)
-    if limit <= 0:
+    if limit is not None and limit <= 0:
         raise ValueError("A game must include at least one button decision")
+    if limit is None and reference:
+        raise ValueError("Use a bounded run to test a historical reference")
     provenance = json.loads((source_run / "provenance.json").read_text())
     with (checkpoint / "agent.pkl").open("rb") as f:
         sha = hashlib.file_digest(f, "sha256").hexdigest()
-    seed = provenance["seed"]
+    seed = provenance["seed"] if eval_seed is None else eval_seed
+    if seed < 0:
+        raise ValueError("Evaluation seed must be nonnegative")
     identity = dict(checkpoint=str(checkpoint), weight_sha256=sha, seed=seed,
                     buttons_per_game=limit, games=4, in_game_restores=0, weight_updates=0, platform="WSL CUDA",
                     reference_constraint=str(reference) if reference else None)
@@ -81,6 +86,10 @@ def play(checkpoint, source_run, directory, limit, reference, source):
         raise ValueError("Output directory was used for a different policy")
     if (directory / "result.json").is_file():
         return
+    if limit is None:
+        # A restarted process begins a new game. Preserve earlier partial episodes separately.
+        with (directory / "fresh-attempt.json").open("x") as marker:
+            json.dump(dict(started=time.time(), weight_sha256=sha),marker)
     write_json(previous, identity)
     ref = None
     if reference:
@@ -90,13 +99,14 @@ def play(checkpoint, source_run, directory, limit, reference, source):
         ref = [files[f"env-{i}"].read_bytes() for i in range(4)]
         assert len({len(t) for t in ref}) == 1
     policy = load_actor(checkpoint, source_run, seed, source)
-    pool = PixelPool(4, provenance.get("uncapped_exploration", False))
+    pool = PixelPool(4, provenance.get("uncapped_exploration", False),directory/"first-maps")
     try:
         images = np.stack([pool.command(i,"reset") for i in range(4)])
         rewards = np.zeros(4, np.float32)
         start = time.monotonic()
         verified_prefix = 0
-        for step in range(1,limit+1):
+        steps = itertools.count(1) if limit is None else range(1,limit+1)
+        for step in steps:
             buttons = policy(images, rewards, step == 1)
             # Historical buttons are read only AFTER the actor has chosen. A mismatch stops the test.
             if ref and step <= len(ref[0]):
@@ -110,9 +120,15 @@ def play(checkpoint, source_run, directory, limit, reference, source):
                     raise ValueError(f"Reference mismatch at decision {step} on workers {different}")
                 verified_prefix = step
             images, rewards, done = pool.step(buttons)
-            if step == limit or done.any() or step % 8192 == 0 or (rewards >= 4).any():
+            report = step % 8192 == 0
+            full = report and (limit is not None or (step & (step-1)) == 0)
+            event_reward = 4 if limit is not None else 1
+            if report and limit is None:
                 for i in range(4):
-                    if step == limit or done.any() or step % 8192 == 0 or rewards[i] >= 4:
+                    pool.command(i, "audit_summary", str(directory/"latest"/f"env-{i}"))
+            if step == limit or done.any() or full or (rewards >= event_reward).any():
+                for i in range(4):
+                    if step == limit or done.any() or full or rewards[i] >= event_reward:
                         dest = directory / "games" / f"env-{i}" / f"step-{step:07}"
                         pool.command(i, "audit", str(dest))
                         if done[i]:
@@ -139,9 +155,13 @@ if __name__ == "__main__":
     parser.add_argument("checkpoint", type=Path)
     parser.add_argument("source_run", type=Path)
     parser.add_argument("output", type=Path)
-    parser.add_argument("--limit", type=int, required=True)
+    duration = parser.add_mutually_exclusive_group(required=True)
+    duration.add_argument("--limit", type=int, help="End a comparison game at this many decisions")
+    duration.add_argument("--until-badge", action="store_true",
+                          help="Continue each fresh game across reporting checkpoints until a verified victory")
     parser.add_argument("--upstream", type=Path, required=True)
     parser.add_argument("--reference", type=Path)
+    parser.add_argument("--seed", type=int, help="Use an independent policy sampling seed for this evaluation")
     args = parser.parse_args()
     play(args.checkpoint.resolve(), args.source_run.resolve(), args.output.resolve(), args.limit,
-         args.reference.resolve() if args.reference else None, args.upstream.resolve())
+         args.reference.resolve() if args.reference else None, args.upstream.resolve(), args.seed)

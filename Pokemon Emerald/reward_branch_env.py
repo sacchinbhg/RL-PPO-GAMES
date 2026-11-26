@@ -6,9 +6,9 @@ from pathlib import Path
 import traceback
 
 
-def _worker(pipe):
+def _worker(pipe, map_audits=None):
     from emerald import Emerald
-    from pixel_env import Score, game_paths
+    from pixel_env import Score, first_map_audit, game_paths
 
     game = Emerald(*game_paths())
     try:
@@ -16,6 +16,16 @@ def _worker(pipe):
         score = Score(uncapped_exploration=True)
         picture, tape, total, terminal = game.boot_image, bytearray(), 0, False
         slots = {}
+        if map_audits:
+            map_audits.mkdir(parents=True, exist_ok=True)
+        saved_maps = set()
+        def audit(target, cents):
+            target.mkdir(parents=True, exist_ok=True)
+            (target / "game.bin").write_bytes(tape)
+            report = dict(steps=len(tape), events=score.events, first_visit_cells=len(score.cells),
+                          maps_first_reached=score.first_maps, uncapped_exploration=True,
+                          return_cents=cents, source="self-generated training forks")
+            (target / "game.json").write_text(json.dumps(report, indent=2))
         pipe.send(picture)
         while True:
             command, arg = pipe.recv()
@@ -28,9 +38,15 @@ def _worker(pipe):
                 reward = 0
                 for used in range(1, duration + 1):
                     picture, descriptor = game.step(button)
+                    n_maps = len(score.first_maps)
                     amount, terminal = score.read(game, descriptor)
                     reward += round(100 * amount)
                     tape.append(button)
+                    if map_audits and len(score.first_maps) != n_maps:
+                        name = next(reversed(score.first_maps))
+                        if name not in saved_maps:
+                            first_map_audit(map_audits, name, lambda target: audit(target,total+reward))
+                            saved_maps.add(name)
                     if reward or terminal:
                         break
                 total += reward
@@ -45,12 +61,7 @@ def _worker(pipe):
                 response = picture
             elif command == "audit":
                 target = Path(arg)
-                target.mkdir(parents=True, exist_ok=True)
-                (target / "game.bin").write_bytes(tape)
-                report = dict(steps=len(tape), events=score.events, first_visit_cells=len(score.cells),
-                              uncapped_exploration=True, return_cents=total,
-                              source="self-generated training forks")
-                (target / "game.json").write_text(json.dumps(report, indent=2))
+                audit(target,total)
                 response = True
             else:
                 raise ValueError(command)
@@ -63,10 +74,10 @@ def _worker(pipe):
 
 
 class ForkEnv:
-    def __init__(self):
+    def __init__(self, map_audits=None):
         ctx = mp.get_context("spawn")
         self.pipe, back = ctx.Pipe()
-        self.process = ctx.Process(target=_worker, args=(back,), daemon=True)
+        self.process = ctx.Process(target=_worker, args=(back,map_audits), daemon=True)
         self.process.start()
         back.close()
         self.initial = self.receive()

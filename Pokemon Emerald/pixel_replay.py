@@ -10,7 +10,7 @@ import struct
 import subprocess
 
 from PIL import Image
-from emerald import BUTTON_IDS, Emerald, REPEAT, ROM_SHA1, verify_rom
+from emerald import BUTTON_IDS, Emerald, MAPS, REPEAT, ROM_SHA1, verify_rom
 from pixel_env import Score, game_paths
 
 
@@ -45,11 +45,18 @@ def host_path(path,binary):
     return str(path)
 
 
-def replay(audit,out,event,video):
+def replay(audit,out,event,video,map_name=None):
     audit=audit.resolve()
     evidence=json.loads(audit.read_text())
-    event_step=evidence["events"].get(event)
-    if event_step is None:raise ValueError(f"{event} missing from episode")
+    if map_name is not None:
+        if not any(map_name in group for group in MAPS):
+            raise ValueError(f"Unknown Emerald map: {map_name}")
+        event_step=evidence.get("maps_first_reached",{}).get(map_name)
+        label="map-"+map_name
+    else:
+        event_step=evidence["events"].get(event)
+        label=event
+    if event_step is None:raise ValueError(f"{label} missing from episode")
     tape=audit.with_suffix(".bin").read_bytes()
     assert len(tape)==evidence["steps"]
     core, rom = game_paths()
@@ -59,8 +66,8 @@ def replay(audit,out,event,video):
     start=max(1,event_step-24)
     end=min(len(tape),event_step+10)
     writer=None
-    temp=out/(event+".partial.mp4")
-    final=out/(event+".mp4")
+    temp=out/(label+".partial.mp4")
+    final=out/(label+".mp4")
     if video:
         binary=shutil.which("ffmpeg") or shutil.which("ffmpeg.exe")
         if not binary:raise FileNotFoundError("FFmpeg")
@@ -94,8 +101,12 @@ def replay(audit,out,event,video):
                 sb=read(0x03005d8c,4)
                 flags=lambda flag:read(sb+0x1270+flag//8,1)&(1<<(flag%8))
                 if flags(0x4f0) and flags(0x867) and badge_at is None:badge_at=n
-            if n==event_step:Image.fromarray(g.screen).save(out/(event+".png"))
+            if n==event_step:Image.fromarray(g.screen).save(out/(label+".png"))
         assert observed.events==evidence["events"],(observed.events,evidence["events"])
+        if "maps_first_reached" in evidence:
+            assert observed.first_maps == evidence["maps_first_reached"]
+        if map_name is not None:
+            assert observed.first_maps.get(map_name) == event_step
         if event=="stone_badge":
             assert fight and badge_at and fight<badge_at and badge_at==event_step
     finally:
@@ -107,7 +118,9 @@ def replay(audit,out,event,video):
                 verified_events=observed.events,buttons=len(tape),fresh_boot=True,restores_during_game=0,
                 rom_sha1=ROM_SHA1,core_sha256=hashlib.sha256(core.read_bytes()).hexdigest(),
                 input_sha256=hashlib.sha256(tape).hexdigest(),roxanne_battle=fight,stone_badge=badge_at,
-                starter=starter)
+                starter=starter,maps_first_reached=observed.first_maps)
+    if map_name is not None:
+        result["checked_map"]=map_name
     if video:
         binary=shutil.which("ffprobe") or shutil.which("ffprobe.exe")
         meta=json.loads(subprocess.check_output([binary,"-v","error","-show_entries",
@@ -124,7 +137,9 @@ if __name__=="__main__":
     p=argparse.ArgumentParser()
     p.add_argument("audit",type=Path)
     p.add_argument("out",type=Path)
-    p.add_argument("--event",default="stone_badge")
+    goal=p.add_mutually_exclusive_group()
+    goal.add_argument("--event")
+    goal.add_argument("--map",dest="map_name",help="Verify the first original-ROM entry into a recorded map")
     p.add_argument("--video",action="store_true")
     args=p.parse_args()
-    replay(args.audit,args.out,args.event,args.video)
+    replay(args.audit,args.out,args.event or (None if args.map_name else "stone_badge"),args.video,args.map_name)

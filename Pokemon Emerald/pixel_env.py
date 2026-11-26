@@ -3,9 +3,10 @@ import json
 import multiprocessing as mp
 import os
 from pathlib import Path
+import tempfile
 import traceback
 import numpy as np
-from emerald import Emerald
+from emerald import Emerald, MAPS
 
 ROOT=Path(__file__).resolve().parent
 CLEAN=ROOT/"runs"/"pixels-only-01"
@@ -28,12 +29,15 @@ class Score:
         self.cells=set()
         self.high_level=5
         self.events={}
+        self.first_maps={}
         self.decisions=0
 
     def read(self,env,key):
         self.decisions+=1
         verified=env.verified_story(key)
         if verified is None:return 0.,False
+        if key[0]==5:
+            self.first_maps.setdefault(MAPS[key[1]][key[2]], self.decisions)
         rival,party=verified
         def read(addr,n):return int.from_bytes(env.ram(addr,n),"little")
         sb=read(0x03005d8c,4)
@@ -66,13 +70,34 @@ class Score:
         return reward,badge
 
 
-def worker(conn,n,uncapped_exploration=False):
+def first_map_audit(parent, name, write):
+    target=parent/name
+    if target.exists():
+        return
+    parent.mkdir(parents=True,exist_ok=True)
+    with tempfile.TemporaryDirectory(dir=parent) as temp:
+        draft=Path(temp)/"map"
+        write(draft)
+        draft.rename(target)
+
+
+def worker(conn,n,uncapped_exploration=False,map_audits=None):
     env=None
     try:
         env=Emerald(*game_paths())
         episode=0
         score=Score(uncapped_exploration)
         tape=bytearray()
+        def audit(target,full=True):
+            target.mkdir(parents=True,exist_ok=True)
+            label=f"worker-{n:02}-episode-{episode:05}"
+            if full:
+                (target/(label+".bin")).write_bytes(tape)
+            draft=target/(label+".tmp")
+            draft.write_text(json.dumps(dict(events=score.events, steps=score.decisions,
+                first_visit_cells=len(score.cells), maps_first_reached=score.first_maps,
+                uncapped_exploration=uncapped_exploration),indent=2))
+            draft.replace(target/(label+".json"))
         conn.send(env.boot_image)
         while True:
             cmd,arg=conn.recv()
@@ -86,17 +111,15 @@ def worker(conn,n,uncapped_exploration=False):
             elif cmd=="act":
                 pic,key=env.step(arg)
                 tape.append(arg)
+                old_maps=len(score.first_maps)
                 reward,done=score.read(env,key)
+                if map_audits and len(score.first_maps)!=old_maps:
+                    first_map_audit(map_audits/f"env-{n}"/f"episode-{episode:05}",
+                                   next(reversed(score.first_maps)),audit)
                 conn.send((pic,reward,done))
-            elif cmd=="audit":
+            elif cmd in ("audit","audit_summary"):
                 # Only writes reports for humans. Never returns game information to the learner.
-                target=Path(arg)
-                target.mkdir(parents=True,exist_ok=True)
-                label=f"worker-{n:02}-episode-{episode:05}"
-                (target/(label+".bin")).write_bytes(tape)
-                (target/(label+".json")).write_text(json.dumps(dict(events=score.events,
-                    steps=score.decisions,first_visit_cells=len(score.cells),
-                    uncapped_exploration=uncapped_exploration),indent=2))
+                audit(Path(arg),cmd=="audit")
                 conn.send(True)
             else:raise ValueError(cmd)
     except BaseException:
@@ -108,13 +131,13 @@ def worker(conn,n,uncapped_exploration=False):
 
 
 class PixelPool:
-    def __init__(self,count,uncapped_exploration=False):
+    def __init__(self,count,uncapped_exploration=False,map_audits=None):
         self.pipes=[]
         self.processes=[]
         ctx=mp.get_context("spawn")
         for i in range(count):
             front,back=ctx.Pipe()
-            proc=ctx.Process(target=worker,args=(back,i,uncapped_exploration),daemon=True)
+            proc=ctx.Process(target=worker,args=(back,i,uncapped_exploration,map_audits),daemon=True)
             proc.start()
             back.close()
             self.pipes.append(front)

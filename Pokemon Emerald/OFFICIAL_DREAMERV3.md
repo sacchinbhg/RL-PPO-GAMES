@@ -79,3 +79,9 @@ The optional training search argument `--unrewarded-screen-slots 160` keeps visu
 - A claimed evaluation badge triggers a second emulator process. It replays every button from boot, matches the milestone timings, checks Roxanne's trainer ID and both victory flags in Rustboro Gym, and renders video. A successful verification writes `verified-stone-badge.json` under that evaluation. The action tape covers the full playthrough. The video is a short clip around the badge event.
 
 [Pinned DreamerV3 source](https://github.com/danijar/dreamerv3/tree/e01491fad6434b2245a3b8ca201dd7faedcc458c)
+
+### Fixed budgets and the badge attempt
+
+Each agent decision advances 24 GBA frames. Use `--limit 65536` on the direct frozen player to compare checkpoints at the same button budget. Use `--until-badge --seed 271341` to start four fresh games with another sampling seed and keep playing across reporting milestones until a victory is independently verified. The player writes its actual progress every 1,024 decisions. In an uncapped game it saves full tapes at power-of-two reporting checkpoints and major rewards. Use a fresh output directory for each uncapped attempt so an interrupted game's evidence is preserved.
+
+Map names appear in human-facing game audits. The policy receives RGB, scalar reward and episode signals. The direct player also saves the input prefix at each new map. To verify a forest arrival independently, run `python pixel_replay.py AUDIT_JSON OUTPUT --map PetalburgWoods --video`. The verifier checks the original ROM, replays the recorded buttons from boot, matches the story and map timings and saves the entry frame and a short clip.
