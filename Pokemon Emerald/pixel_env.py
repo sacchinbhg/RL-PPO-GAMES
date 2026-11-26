@@ -100,13 +100,15 @@ def first_map_audit(parent, name, write):
         draft.rename(target)
 
 
-def worker(conn,n,uncapped_exploration=False,map_audits=None,log_whiteouts=False,earned_starts=None,start_offset=0):
+def worker(conn,n,uncapped_exploration=False,map_audits=None,log_whiteouts=False,earned_starts=None,start_offset=0,battle_feedback=False):
     env=None
     try:
         env=Emerald(*game_paths())
         episode=0
         score=Score(uncapped_exploration)
         losses=WhiteoutLog() if log_whiteouts else None
+        from battle_feedback import BattleFeedback
+        combat=BattleFeedback() if battle_feedback else None
         tape=bytearray()
         bank=None
         prefix=0
@@ -130,6 +132,8 @@ def worker(conn,n,uncapped_exploration=False,map_audits=None,log_whiteouts=False
             if losses is not None:
                 report["whiteouts"]=losses.events
                 report["maps_after_whiteout"]=losses.maps_after
+            if combat is not None:
+                report["battle_feedback"]=combat.audit()
             draft.write_text(json.dumps(report,indent=2))
             draft.replace(target/(label+".json"))
         conn.send(env.boot_image)
@@ -147,12 +151,15 @@ def worker(conn,n,uncapped_exploration=False,map_audits=None,log_whiteouts=False
                     picture,score,tape=bank.restore(env,start_offset+n+episode-1)
                     prefix=len(tape)
                 losses=WhiteoutLog() if log_whiteouts else None
+                combat=BattleFeedback() if battle_feedback else None
                 conn.send(picture)
             elif cmd=="act":
                 pic,key=env.step(arg)
                 tape.append(arg)
                 old_maps=len(score.first_maps)
                 reward,done=score.read(env,key)
+                if combat is not None:
+                    reward+=combat.read(env,key)
                 if losses is not None:
                     losses.observe(env,len(tape),key)
                 if map_audits and len(score.first_maps)!=old_maps:
@@ -173,13 +180,13 @@ def worker(conn,n,uncapped_exploration=False,map_audits=None,log_whiteouts=False
 
 
 class PixelPool:
-    def __init__(self,count,uncapped_exploration=False,map_audits=None,log_whiteouts=False,earned_starts=None,start_offset=0):
+    def __init__(self,count,uncapped_exploration=False,map_audits=None,log_whiteouts=False,earned_starts=None,start_offset=0,battle_feedback=False):
         self.pipes=[]
         self.processes=[]
         ctx=mp.get_context("spawn")
         for i in range(count):
             front,back=ctx.Pipe()
-            proc=ctx.Process(target=worker,args=(back,i,uncapped_exploration,map_audits,log_whiteouts,earned_starts,start_offset),daemon=True)
+            proc=ctx.Process(target=worker,args=(back,i,uncapped_exploration,map_audits,log_whiteouts,earned_starts,start_offset,battle_feedback),daemon=True)
             proc.start()
             back.close()
             self.pipes.append(front)

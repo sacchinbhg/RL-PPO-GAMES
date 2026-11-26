@@ -153,6 +153,8 @@ def main():
     parser.add_argument("--ratio",type=float,default=8.)
     parser.add_argument("--uncapped-exploration", action="store_true",
                         help="Continue rewarding a first cell visit after the first 50 cells in an episode")
+    parser.add_argument("--battle-feedback", action="store_true", default=None,
+                        help="Add signed HP changes and resolved battle outcomes to scalar reward")
     parser.add_argument("--reward-replay-fraction", type=float, default=0.,
                         help="Fraction of offline training samples drawn in proportion to peak absolute reward")
     parser.add_argument("--evaluate",type=Path,help="Evaluate frozen upstream checkpoint")
@@ -183,6 +185,7 @@ def main():
     if args.evaluate and args.screen_exploration_envs:
         parser.error("frozen evaluations require zero screen exploration workers")
     args.discount_horizon = resolve_discount_horizon(args.discount_horizon, args.evaluate)
+    args.battle_feedback = checkpoint_setting(args.battle_feedback,args.evaluate,"battle_feedback",False)
     args.actor_entropy = checkpoint_setting(args.actor_entropy, args.evaluate, "actor_entropy", 0.0003)
     if args.discount_horizon < 2:
         parser.error("discount horizon must be at least 2")
@@ -227,7 +230,8 @@ def main():
             earned_worker=index-(args.envs-args.earned_start_envs)
             starts=args.earned_starts if earned_worker>=0 else None
             start_offset=max(0,earned_worker)*len(start_identity["snapshot_sha256"])//args.earned_start_envs if starts is not None else 0
-            self.pool=PixelPool(1,args.uncapped_exploration,earned_starts=starts,start_offset=start_offset)
+            self.pool=PixelPool(1,args.uncapped_exploration,earned_starts=starts,start_offset=start_offset,
+                                battle_feedback=args.battle_feedback)
             self.index=index
             self.done=True
             self.age=0
@@ -274,6 +278,7 @@ def main():
                   reward_replay_fraction=args.reward_replay_fraction,retain_reward_windows=args.retain_reward_windows,
                   parallel_envs=args.parallel_envs)
     settings["screen_exploration_envs"] = args.screen_exploration_envs
+    settings["battle_feedback"] = args.battle_feedback
     settings["short_episode_envs"] = args.short_episode_envs
     settings["worker_episode_lengths"] = worker_lengths
     if start_identity:
@@ -283,6 +288,8 @@ def main():
     provenance = log / "provenance.json"
     if provenance.exists():
         previous = json.loads(provenance.read_text())
+        if previous.get("battle_feedback",False)!=args.battle_feedback:
+            raise ValueError("Use a new training directory when changing combat feedback")
         if previous.get("initial_agent_sha256")!=initial_sha:
             raise ValueError("Use a new training directory when changing initial weights")
         if (previous.get("earned_start_envs",0)!=args.earned_start_envs

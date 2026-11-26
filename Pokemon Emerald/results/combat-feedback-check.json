@@ -1,0 +1,39 @@
+{
+  "checked_tape": "e519f80178b2f146c433b09723d899a53d167bdd611238ca88498b13e33d414a",
+  "verified_prefix": 39993,
+  "replayed_buttons": 555,
+  "actual_nonzero_rewards": {
+    "40443": -0.06521739130434782,
+    "40452": -1.0
+  },
+  "checked_against_original_game": true,
+  "feedback": {
+    "won": 0,
+    "lost": 1,
+    "health_changes": 1,
+    "scalar_return": -1.065217391304348
+  },
+  "positive_test": {
+    "prefix": 25509,
+    "verified_win_decision": 25705,
+    "observed_win_decisions": [
+      25705
+    ],
+    "health_rewards": [
+      [
+        25608,
+        0.1875
+      ],
+      [
+        25640,
+        0.15625
+      ]
+    ],
+    "feedback": {
+      "won": 1,
+      "lost": 0,
+      "health_changes": 2,
+      "scalar_return": 1.34375
+    }
+  }
+}

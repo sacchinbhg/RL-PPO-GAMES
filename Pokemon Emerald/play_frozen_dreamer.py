@@ -97,6 +97,8 @@ def play(checkpoint, source_run, directory, limit, reference, source, eval_seed=
                     reference_constraint=str(reference) if reference else None)
     if log_whiteouts:
         identity["external_whiteout_log"]=True
+    if provenance.get("battle_feedback",False):
+        identity["battle_feedback"]=True
     previous = directory / "provenance.json"
     if previous.exists() and json.loads(previous.read_text()) != identity:
         raise ValueError("Output directory was used for a different policy")
@@ -115,7 +117,8 @@ def play(checkpoint, source_run, directory, limit, reference, source, eval_seed=
         ref = [files[f"env-{i}"].read_bytes() for i in range(4)]
         assert len({len(t) for t in ref}) == 1
     policy = load_actor(checkpoint, source_run, seed, source)
-    pool = PixelPool(4, provenance.get("uncapped_exploration", False),directory/"first-maps",log_whiteouts)
+    pool = PixelPool(4, provenance.get("uncapped_exploration", False),directory/"first-maps",log_whiteouts,
+                     battle_feedback=provenance.get("battle_feedback",False))
     try:
         images = np.stack([pool.command(i,"reset") for i in range(4)])
         rewards = np.zeros(4, np.float32)

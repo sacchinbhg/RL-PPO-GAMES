@@ -1,0 +1,322 @@
+{
+  "input_sha256": "e519f80178b2f146c433b09723d899a53d167bdd611238ca88498b13e33d414a",
+  "buttons": 40548,
+  "rom_sha1": "f3ae088181bf583e55daf962a92bb46f4f1d07b7",
+  "in_game_restores": 0,
+  "maps": {
+    "InsideOfTruck": 569,
+    "LittlerootTown": 881,
+    "LittlerootTown_BrendansHouse_1F": 935,
+    "LittlerootTown_BrendansHouse_2F": 1221,
+    "LittlerootTown_MaysHouse_1F": 5225,
+    "LittlerootTown_MaysHouse_2F": 6610,
+    "LittlerootTown_ProfessorBirchsLab": 10307,
+    "Route101": 14985,
+    "OldaleTown": 27916,
+    "OldaleTown_PokemonCenter_1F": 28451,
+    "OldaleTown_PokemonCenter_2F": 30046,
+    "OldaleTown_Mart": 35235,
+    "OldaleTown_House1": 35853,
+    "Route103": 37258
+  },
+  "overworld_decisions": {
+    "InsideOfTruck": 311,
+    "LittlerootTown": 6396,
+    "LittlerootTown_BrendansHouse_1F": 1029,
+    "LittlerootTown_BrendansHouse_2F": 1909,
+    "LittlerootTown_MaysHouse_1F": 1159,
+    "LittlerootTown_MaysHouse_2F": 1171,
+    "LittlerootTown_ProfessorBirchsLab": 7974,
+    "Route101": 2829,
+    "OldaleTown": 5053,
+    "OldaleTown_PokemonCenter_1F": 1837,
+    "OldaleTown_PokemonCenter_2F": 1879,
+    "OldaleTown_Mart": 203,
+    "OldaleTown_House1": 290,
+    "Route103": 2232
+  },
+  "recorded_battles": [
+    {
+      "first_battle_frame": 15367,
+      "previous_overworld_map": "Route101",
+      "trainer_ids": [],
+      "observed_zero_outcome": true,
+      "first_nonzero_outcome": [
+        15512,
+        1
+      ],
+      "first_overworld_after": 15514
+    },
+    {
+      "first_battle_frame": 22670,
+      "previous_overworld_map": "Route101",
+      "trainer_ids": [],
+      "observed_zero_outcome": true,
+      "first_nonzero_outcome": [
+        23075,
+        4
+      ],
+      "first_overworld_after": 23096
+    },
+    {
+      "first_battle_frame": 23140,
+      "previous_overworld_map": "Route101",
+      "trainer_ids": [],
+      "observed_zero_outcome": true,
+      "first_nonzero_outcome": [
+        23205,
+        1
+      ],
+      "first_overworld_after": 23207
+    },
+    {
+      "first_battle_frame": 23288,
+      "previous_overworld_map": "Route101",
+      "trainer_ids": [],
+      "observed_zero_outcome": true,
+      "first_nonzero_outcome": [
+        23325,
+        4
+      ],
+      "first_overworld_after": 23362
+    },
+    {
+      "first_battle_frame": 23396,
+      "previous_overworld_map": "Route101",
+      "trainer_ids": [],
+      "observed_zero_outcome": true,
+      "first_nonzero_outcome": [
+        23452,
+        4
+      ],
+      "first_overworld_after": 23468
+    },
+    {
+      "first_battle_frame": 23506,
+      "previous_overworld_map": "Route101",
+      "trainer_ids": [],
+      "observed_zero_outcome": true,
+      "first_nonzero_outcome": [
+        23704,
+        1
+      ],
+      "first_overworld_after": 23707
+    },
+    {
+      "first_battle_frame": 24277,
+      "previous_overworld_map": "Route101",
+      "trainer_ids": [],
+      "observed_zero_outcome": true,
+      "first_nonzero_outcome": [
+        24412,
+        4
+      ],
+      "first_overworld_after": 24420
+    },
+    {
+      "first_battle_frame": 24516,
+      "previous_overworld_map": "Route101",
+      "trainer_ids": [],
+      "observed_zero_outcome": true,
+      "first_nonzero_outcome": [
+        24714,
+        1
+      ],
+      "first_overworld_after": 24716
+    },
+    {
+      "first_battle_frame": 24849,
+      "previous_overworld_map": "Route101",
+      "trainer_ids": [],
+      "observed_zero_outcome": true,
+      "first_nonzero_outcome": [
+        24965,
+        4
+      ],
+      "first_overworld_after": 24975
+    },
+    {
+      "first_battle_frame": 25033,
+      "previous_overworld_map": "Route101",
+      "trainer_ids": [],
+      "observed_zero_outcome": true,
+      "first_nonzero_outcome": [
+        25160,
+        1
+      ],
+      "first_overworld_after": 25162
+    },
+    {
+      "first_battle_frame": 25341,
+      "previous_overworld_map": "Route101",
+      "trainer_ids": [],
+      "observed_zero_outcome": true,
+      "first_nonzero_outcome": [
+        25705,
+        1
+      ],
+      "first_overworld_after": 25708
+    },
+    {
+      "first_battle_frame": 26003,
+      "previous_overworld_map": "Route101",
+      "trainer_ids": [],
+      "observed_zero_outcome": true,
+      "first_nonzero_outcome": [
+        26156,
+        4
+      ],
+      "first_overworld_after": 26172
+    },
+    {
+      "first_battle_frame": 26284,
+      "previous_overworld_map": "Route101",
+      "trainer_ids": [],
+      "observed_zero_outcome": true,
+      "first_nonzero_outcome": [
+        26387,
+        4
+      ],
+      "first_overworld_after": 26397
+    },
+    {
+      "first_battle_frame": 26506,
+      "previous_overworld_map": "Route101",
+      "trainer_ids": [],
+      "observed_zero_outcome": true,
+      "first_nonzero_outcome": [
+        26653,
+        4
+      ],
+      "first_overworld_after": 26673
+    },
+    {
+      "first_battle_frame": 26729,
+      "previous_overworld_map": "Route101",
+      "trainer_ids": [],
+      "observed_zero_outcome": true,
+      "first_nonzero_outcome": [
+        26944,
+        1
+      ],
+      "first_overworld_after": 26946
+    },
+    {
+      "first_battle_frame": 27049,
+      "previous_overworld_map": "Route101",
+      "trainer_ids": [],
+      "observed_zero_outcome": true,
+      "first_nonzero_outcome": [
+        27224,
+        4
+      ],
+      "first_overworld_after": 27232
+    },
+    {
+      "first_battle_frame": 27291,
+      "previous_overworld_map": "Route101",
+      "trainer_ids": [],
+      "observed_zero_outcome": true,
+      "first_nonzero_outcome": [
+        27331,
+        4
+      ],
+      "first_overworld_after": 27359
+    },
+    {
+      "first_battle_frame": 27446,
+      "previous_overworld_map": "Route101",
+      "trainer_ids": [],
+      "observed_zero_outcome": true,
+      "first_nonzero_outcome": [
+        27489,
+        4
+      ],
+      "first_overworld_after": 27502
+    },
+    {
+      "first_battle_frame": 27547,
+      "previous_overworld_map": "Route101",
+      "trainer_ids": [],
+      "observed_zero_outcome": true,
+      "first_nonzero_outcome": [
+        27717,
+        1
+      ],
+      "first_overworld_after": 27719
+    },
+    {
+      "first_battle_frame": 37982,
+      "previous_overworld_map": "Route103",
+      "trainer_ids": [],
+      "observed_zero_outcome": true,
+      "first_nonzero_outcome": [
+        38149,
+        4
+      ],
+      "first_overworld_after": 38155
+    },
+    {
+      "first_battle_frame": 38618,
+      "previous_overworld_map": "Route103",
+      "trainer_ids": [],
+      "observed_zero_outcome": true,
+      "first_nonzero_outcome": [
+        38667,
+        4
+      ],
+      "first_overworld_after": 38673
+    },
+    {
+      "first_battle_frame": 38747,
+      "previous_overworld_map": "Route103",
+      "trainer_ids": [],
+      "observed_zero_outcome": true,
+      "first_nonzero_outcome": [
+        38896,
+        1
+      ],
+      "first_overworld_after": 38898
+    },
+    {
+      "first_battle_frame": 39615,
+      "previous_overworld_map": "Route103",
+      "trainer_ids": [],
+      "observed_zero_outcome": true,
+      "first_nonzero_outcome": [
+        39660,
+        4
+      ],
+      "first_overworld_after": 39668
+    },
+    {
+      "first_battle_frame": 40073,
+      "previous_overworld_map": "Route103",
+      "trainer_ids": [
+        535
+      ],
+      "observed_zero_outcome": true,
+      "first_nonzero_outcome": [
+        40452,
+        2
+      ],
+      "first_overworld_after": 40475
+    }
+  ],
+  "trainer_battle_decisions": {
+    "535": 198
+  },
+  "observed_route103_rival_ids": [
+    535
+  ],
+  "verified_events": {
+    "bedroom": 1221,
+    "clock": 2772,
+    "sent_to_meet_rival": 4007,
+    "met_rival": 6770,
+    "route101": 14985,
+    "heard_birch": 15015,
+    "starter": 15367,
+    "lab_handoff": 15853
+  }
+}

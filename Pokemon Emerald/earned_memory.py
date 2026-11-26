@@ -18,7 +18,12 @@ def encode(frame):
 
 def fit(datasets, output):
     games=[Trajectory(d) for d in datasets]
-    tapes=[g.source["source_sha256"] for g in games]
+    fit_episodes([(g.source["source_sha256"],len(g.tape),g.episode) for g in games],output)
+
+
+def fit_episodes(sources, output):
+    sources=list(sources)
+    tapes=[sha for sha,_,_ in sources]
     marker=output/"fit.json"
     output.mkdir(parents=True,exist_ok=True)
     if marker.exists():
@@ -27,10 +32,10 @@ def fit(datasets, output):
             raise ValueError("Another memory model occupies this directory")
         return
     arrays={}
-    for j,game in enumerate(games):
+    for j,(_,length,episode) in enumerate(sources):
         keys,features,buttons,progress,rewards=[],[],[],[],[]
         phase=0
-        for pic,button,incoming,first,last,terminal in game.episode():
+        for pic,button,incoming,first,last,terminal in episode():
             phase+=int(incoming>=.25)
             key,feature=encode(pic)
             keys.append(key)
@@ -38,6 +43,8 @@ def fit(datasets, output):
             buttons.append(button)
             progress.append(phase)
             rewards.append(incoming)
+        if len(keys)!=length+1:
+            raise ValueError("Training image history and action count disagree")
         # Value of each observed continuation. The last state has no outgoing recorded action.
         returns=np.zeros(len(rewards),np.float32)
         for t in range(len(rewards)-2,-1,-1):
@@ -50,7 +57,7 @@ def fit(datasets, output):
         np.savez_compressed(path,**arrays)
         path.replace(output/"model.npz")
     write_json(marker,dict(model_sha256=digest(output/"model.npz"),self_earned_tapes=tapes,
-        training_decisions=[len(t.tape) for t in games],self_imitation=True,frozen_evaluation_data_used=False,
+        training_decisions=[length for _,length,_ in sources],self_imitation=True,frozen_evaluation_data_used=False,
         inputs="RGB, incoming scalar reward and previously executed action",
         method="match observed screens with learned action-conditioned transitions and select a known continuation"))
 
