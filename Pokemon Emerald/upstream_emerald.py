@@ -327,7 +327,17 @@ def main():
         else:
             if args.initial_agent:
                 options+=["--run.from_checkpoint",str(args.initial_agent.resolve())]
-            train_through_budget(upstream, options, elements, log, args.steps)
+                # This pinned trainer reads a weight filter missing from its default run config.
+                # The empty filter loads the full agent with upstream's shape checks.
+                from unittest.mock import patch
+                train=upstream.embodied.run.train
+                def load_full_agent(make_agent,make_replay,make_env,make_stream,make_logger,run_config):
+                    complete=elements.Config({**dict(run_config),"from_checkpoint_regex":""})
+                    return train(make_agent,make_replay,make_env,make_stream,make_logger,complete)
+                with patch.object(upstream.embodied.run,"train",load_full_agent):
+                    train_through_budget(upstream,options,elements,log,args.steps)
+            else:
+                train_through_budget(upstream, options, elements, log, args.steps)
 
 
 if __name__=="__main__":

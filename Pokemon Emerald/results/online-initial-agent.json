@@ -1,0 +1,19 @@
+{
+  "fresh_log_step": 0,
+  "matched_parameters": 288,
+  "parameter_bytes": 8506588,
+  "all_values_equal": true,
+  "source_counters": {
+    "updates": 4066,
+    "batches": 4069,
+    "actions": 16359
+  },
+  "restored_counters": {
+    "updates": 4066,
+    "batches": 4066,
+    "actions": 16359
+  },
+  "prefetched_batches_rewound_to_completed_updates": true,
+  "source_sha256": "8c559d8dee90ad3b52427c5c38b5ee7ec37a9828675db9d10aa1102d19d11fab",
+  "initial_saved_sha256": "341a2a581a57d909365ebb345787aa3056a4a0f0f8e2f35d3d4a33f8b3d455a5"
+}
