@@ -56,6 +56,12 @@ To test how strongly the imagined actor is encouraged to explore, set `--actor-e
 
 ## Inspect the evidence
 
+### Self-generated training forks
+
+`python reward_branch_search.py --logdir runs/reward-forks --steps 5000000` starts a separate collector from the original boot. Its pixel transition model chooses a button and explores different hold durations. It can return to points in its own training game using opaque emulator slots. It selects those points by accumulated scalar reward, screen diversity and how often it has tried them. The environment pays the existing story and level rewards and 0.02 for every first cell visit within a path. Restoring a point also restores the rewards already collected on that path. The controller receives pixels, payoffs and the episode boundary. The argument to `--steps` counts newly simulated button decisions over every branch.
+
+`python export_reward_branch.py runs/reward-forks runs/reward-forks/verified-training-tapes` plays the current best training tape from boot in an independent emulator. It checks the exact buttons, milestone times, visited-cell count and total reward. Each exported chunk contains the RGB frame before every action, the action, the following frame and the resulting scalar reward. The collector and exporter are separate from the official Dreamer training and its frozen evaluation. A replay verifies a discovery. Fresh closed-loop play by a frozen policy measures what the policy learned.
+
 - `train/metrics.jsonl` contains throughput, model losses and replay statistics. Both arms use a 131,072-transition in-memory replay limit.
 - `train/world-model-predictions/` stores the official model's prediction grids as compressed NumPy arrays. Each column is a sampled training sequence. Rows show game pixels, predicted pixels, and signed error. Green borders mark the observed part. Red borders mark open-loop prediction conditioned on recorded buttons.
 - Each evaluation's `provenance.json` identifies the actual training step and SHA-256 of its frozen policy. The directory also retains the weights so a later training checkpoint can rotate safely.
