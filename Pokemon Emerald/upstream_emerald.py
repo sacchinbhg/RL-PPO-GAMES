@@ -13,6 +13,19 @@ PIN="e01491fad6434b2245a3b8ca201dd7faedcc458c"
 REPLAY_CAPACITY = 131_072
 
 
+def skip_json_episode_video(elements):
+    # Upstream stores worker zero's image view for every decision. Each view
+    # retains the whole worker batch until episode end. JSONL emits only scalars.
+    add = elements.Agg.add
+
+    def add_metric(self, key_or_dict, value=None, agg=None, prefix=None):
+        if key_or_dict == "policy_image" and agg == "stack" and prefix is None:
+            return
+        return add(self, key_or_dict, value, agg, prefix)
+
+    return patch.object(elements.Agg, "add", add_metric)
+
+
 def resolve_discount_horizon(requested, checkpoint):
     if checkpoint:
         folder = checkpoint.resolve().parent
@@ -223,12 +236,13 @@ def main():
                    "--run.log_every","20","--run.report_every","600","--run.save_every","180",
                    "--run.usage.nvsmi","False","--logger.outputs","jsonl",
                    "--run.debug",str(not args.parallel_envs)]
-    if args.evaluate:
-        options+=["--script","eval_only","--run.from_checkpoint",str(frozen)]
-        upstream.main(options)
-        verify_evaluation_win(log, checkpoint_info)
-    else:
-        train_through_budget(upstream, options, elements, log, args.steps)
+    with skip_json_episode_video(elements):
+        if args.evaluate:
+            options+=["--script","eval_only","--run.from_checkpoint",str(frozen)]
+            upstream.main(options)
+            verify_evaluation_win(log, checkpoint_info)
+        else:
+            train_through_budget(upstream, options, elements, log, args.steps)
 
 
 if __name__=="__main__":
