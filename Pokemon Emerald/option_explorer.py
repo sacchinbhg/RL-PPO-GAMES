@@ -100,11 +100,13 @@ class Options:
 
 
 def run(folder, budget, motion_probe=None, stage_reservoir=0, proposal=None, systematic=False, reward_landmarks=False,
-        recent_landmarks=0):
+        recent_landmarks=0, shared_visit_reward=False):
     origin=json.loads((folder/"branch-origin.json").read_text())
     settings=dict(seed=origin["seed"],training_forks=True,receives_saves_from_other_runs=False,
                   observation="RGB, scalar reward, episode end", root="self-earned cold-boot action history",
                   durations=list(DURATIONS),behavior="empirical button-duration transitions with visual backoff")
+    if shared_visit_reward:
+        settings["coordinate_reward"]="0.02 once across all branches in this training experiment"
     if motion_probe:
         settings["visual_motion_source"]=json.loads(motion_probe.read_text())["training_tape_sha256"]
     if stage_reservoir:
@@ -132,10 +134,18 @@ def run(folder, budget, motion_probe=None, stage_reservoir=0, proposal=None, sys
         raise ValueError("A different experiment owns this directory")
     write_json(setup,settings)
     old=json.loads((folder/"best.json").read_text())
+    previous=json.loads((folder/"status.json").read_text()) if (folder/"status.json").exists() else {}
+    if previous.get("work",0)>=budget or old["terminal"]:
+        return
+    if shared_visit_reward:
+        # Rebuild the shared reward history deterministically, including losing branches,
+        # when an interrupted worker resumes. A single winning tape cannot reproduce it.
+        initial_dir=folder/"discoveries"/f"work-{origin['inherited_training_buttons']:010d}"
+        old=json.loads((initial_dir/"record.json").read_text())
+        previous={}
     tape=(folder/old["audit"]/"game.bin").read_bytes()
     if not old["training_only"] or hashlib.sha256(tape).hexdigest()!=old["tape_sha256"]:
         raise ValueError("Unverified training ancestry")
-    previous=json.loads((folder/"status.json").read_text()) if (folder/"status.json").exists() else {}
     work=max(old["work"],previous.get("work",0))
     branches=max(old["branches"],previous.get("branches",0))
     if work>=budget or old["terminal"]:
@@ -154,7 +164,7 @@ def run(folder, budget, motion_probe=None, stage_reservoir=0, proposal=None, sys
         from play_frozen_dreamer import load_actor
         actor=load_actor(proposal["checkpoint"],proposal["parent"],origin["seed"],proposal["upstream"],
                          batch_size=1,with_forks=True)
-    env=ForkEnv(folder/"first-maps")
+    env=ForkEnv(folder/"first-maps",shared_visit_reward=shared_visit_reward)
     proposal_choices=0
     if proposal:
         from fork_policy import ProposalEnv
@@ -255,6 +265,11 @@ def run(folder, budget, motion_probe=None, stage_reservoir=0, proposal=None, sys
                         sha=hashlib.sha256((dest/"game.bin").read_bytes()).hexdigest()
                         saved=dict(work=work,branches=branches,return_cents=total,length=length,screen=state.hex(),
                                    audit=relative,tape_sha256=sha,training_only=True,terminal=terminal)
+                        if shared_visit_reward:
+                            report=json.loads((dest/"game.json").read_text())
+                            saved["selection_return_cents"]=total
+                            saved["return_cents"]=report["return_cents"]
+                            saved["distinct_cells_across_training"]=report["distinct_cells_across_training"]
                         write_json(dest/"record.json",saved)
                         write_json(folder/"best.json",saved)
                         last_saved=total
@@ -265,6 +280,8 @@ def run(folder, budget, motion_probe=None, stage_reservoir=0, proposal=None, sys
             status=dict(work=work,branches=branches,best_return_cents=best,
                        latest_path_length=length,slots=len(archive.points),screen_codes=len(model.context),
                        selected_durations=dict(model.chosen),steps_per_second=(work-initial_work)/(time.monotonic()-started))
+            if shared_visit_reward:
+                status["best_selection_return_cents"]=status.pop("best_return_cents")
             if guide:
                 status.update(motion_decisions=dict(guide.decisions),confirmed_motion=dict(guide.moved),
                               estimated_places=len(guide.visits))
@@ -301,6 +318,8 @@ if __name__=="__main__":
                         help="Offer visual landmarks immediately after any positive scalar reward")
     parser.add_argument("--recent-landmarks",type=int,default=0,
                         help="Reserve this many existing slots for the newest distinct visual landmarks")
+    parser.add_argument("--shared-visit-reward",action="store_true",
+                        help="Pay the visit reward only for the first encounter across all training branches")
     predictors=parser.add_mutually_exclusive_group()
     predictors.add_argument("--dreamer-proposal",type=Path,help="Use a frozen Dreamer checkpoint for half of option choices")
     predictors.add_argument("--uniform-proposal",action="store_true",help="Use uniform buttons at the same choice rate")
@@ -325,4 +344,4 @@ if __name__=="__main__":
     elif args.uniform_proposal:
         proposal=dict(kind="uniform")
     run(folder,budget,args.motion_probe,args.stage_reservoir,proposal,args.systematic_options,args.reward_landmarks,
-        args.recent_landmarks)
+        args.recent_landmarks,args.shared_visit_reward)

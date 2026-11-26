@@ -145,6 +145,8 @@ Add `--reward-landmarks` to offer a visual landmark only on a positive scalar re
 
 With `--recent-landmarks 32`, the same 128 slots keep the 32 most recently discovered distinct appearances plus a uniform reservoir from earlier ones at the same reward stage. Restarts still sample uniformly among stored landmarks. On the original 36,058 actions, the reward-triggered archive kept 23 of the newest 32 appearances. Reserving the 32 slots kept all 32. These checks measure coverage of training saves. Fresh games score whether the resulting experience teaches the policy to travel farther.
 
+The optional `--shared-visit-reward` changes how the emulator awards the existing 0.02 location bonus during training. Once any branch has collected that bonus for a cell, later branches receive zero for visiting it again. The simulator still pays ordinary story and level rewards. The controller receives the usual RGB image and one scalar. Every saved game's audit also records its ordinary return so its route can be verified independently from boot. Restarting this variant reconstructs the shared reward history by repeating the original search deterministically.
+
 ### Can Dreamer extend a route that memory can repeat?
 
 Run two fresh boots with the same frozen visual memory. When both games reach the end of a stored sequence or make no progress through the known screens for 512 decisions, the trained Dreamer controls the first game. Uniform random buttons control the second. Dreamer receives its actual previous input even while the memory chooses the buttons. The run checks that the two games have identical images and rewards until the switch. Read `handoff.json` for the first decision made independently in each game.
