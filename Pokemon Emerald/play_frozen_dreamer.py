@@ -21,7 +21,7 @@ def write_json(path, record):
     tmp.replace(path)
 
 
-def load_actor(checkpoint, source_run, seed, source):
+def load_actor(checkpoint, source_run, seed, source, batch_size=4):
     sys.path.insert(0, str(source))
     import elements
     import jax
@@ -48,18 +48,25 @@ def load_actor(checkpoint, source_run, seed, source):
     def key(n):
         rng = np.random.default_rng([seed, n])
         return jax.device_put(rng.integers(0, np.iinfo(np.uint32).max, 2, np.uint32))
-    _, carry = nj.pure(model.init_policy)(params, 4, seed=key(0))
+    _, carry = nj.pure(model.init_policy)(params, batch_size, seed=key(0))
     policy = nj.pure(model.policy)
     @jax.jit
     def apply(params, carry, obs, seed):
         _, (carry, acts, _) = policy(params, carry, obs, "eval", seed=seed)
         return carry, acts["action"]
-    def decide(images, reward, first):
+    def decide(images, reward, first, previous_buttons=None):
         nonlocal carry, count
-        padded = np.zeros((4,64,64,3), np.uint8)
+        if previous_buttons is not None:
+            executed = np.asarray(previous_buttons)
+            if executed.shape != (batch_size,) or not np.issubdtype(executed.dtype, np.integer) or np.any((executed < 0) | (executed >= 9)):
+                raise ValueError("Invalid previously executed actions")
+            # The upstream carry stores the action sampled on the last call. A second
+            # controller can override that action before it reaches the emulator.
+            carry = (*carry[:-1], {"action": jax.device_put(executed.astype(np.int32))})
+        padded = np.zeros((batch_size,64,64,3), np.uint8)
         padded[:,12:52,2:62] = images
-        obs = dict(image=padded, reward=reward, is_first=np.full(4, first), is_last=np.zeros(4,bool),
-                   is_terminal=np.zeros(4,bool))
+        obs = dict(image=padded, reward=reward, is_first=np.full(batch_size, first), is_last=np.zeros(batch_size,bool),
+                   is_terminal=np.zeros(batch_size,bool))
         carry, acts = apply(params, carry, jax.device_put(obs), key(count))
         count += 1
         return jax.device_get(acts)

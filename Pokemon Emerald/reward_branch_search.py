@@ -29,6 +29,7 @@ class Point:
     length: int
     starts: int = 0
     pose: tuple | None = None
+    stage: int = 0
 
 
 class Archive:

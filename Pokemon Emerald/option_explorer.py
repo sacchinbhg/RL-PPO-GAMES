@@ -99,13 +99,15 @@ class Options:
         return chosen
 
 
-def run(folder, budget, motion_probe=None):
+def run(folder, budget, motion_probe=None, stage_reservoir=0):
     origin=json.loads((folder/"branch-origin.json").read_text())
     settings=dict(seed=origin["seed"],training_forks=True,receives_saves_from_other_runs=False,
                   observation="RGB, scalar reward, episode end", root="self-earned cold-boot action history",
                   durations=list(DURATIONS),behavior="empirical button-duration transitions with visual backoff")
     if motion_probe:
         settings["visual_motion_source"]=json.loads(motion_probe.read_text())["training_tape_sha256"]
+    if stage_reservoir:
+        settings["stage_reservoir"]=stage_reservoir
     setup=folder/"settings.json"
     if setup.exists() and json.loads(setup.read_text())!=settings:
         raise ValueError("A different experiment owns this directory")
@@ -132,10 +134,14 @@ def run(folder, budget, motion_probe=None):
     try:
         warm_start=time.monotonic()
         archive=Archive(env,rng)
+        landmarks=None
+        if stage_reservoir:
+            from scene_reservoir import SceneReservoir
+            landmarks=SceneReservoir(env,np.random.default_rng([origin["seed"],work,817]),stage_reservoir)
         state=model.screen(env.initial)
         if guide:
             guide.restore(env.initial,state)
-        total=0
+        total=stage=0
         recent=deque(maxlen=max(DURATIONS))
         for i,button in enumerate(tape,1):
             pic,cents,done,_=env.command("step",(button,1))
@@ -153,8 +159,12 @@ def run(folder, budget, motion_probe=None):
                     window=history[-duration:]
                     model.record(window[0][0],button,duration,following,sum(p[2] for p in window))
             state=following
+            stage+=int(cents>=100)
+            point=Point(state,total,i,pose=guide.pose if guide else None,stage=stage)
             if cents:
-                archive.offer(Point(state,total,i,pose=guide.pose if guide else None))
+                archive.offer(point)
+            if landmarks and (i%64==0 or cents>=100):
+                landmarks.consider(point,pic)
             if i%4096==0:
                 write_json(folder/"initialization.json",dict(cold_replay_buttons=i,expected=len(tape)))
         if done or total!=old["return_cents"] or state.hex()!=old["screen"]:
@@ -164,10 +174,16 @@ def run(folder, budget, motion_probe=None):
                     matched_total_and_image=True,source_sha256=old["tape_sha256"]))
         best=last_saved=total
         while work<budget:
-            point=archive.start()
+            pickup=landmarks.start() if landmarks else None
+            if pickup:
+                point,restored=pickup
+            else:
+                point=archive.start()
+                restored=archive.restored_image
             state,total,length=point.screen,point.total,point.length
+            stage=point.stage
             if guide:
-                guide.restore(archive.restored_image,state,point.pose)
+                guide.restore(restored,state,point.pose)
             stop=min(work+int(rng.choice([128,256,512,1024,2048])),budget)
             branches+=1
             while work<stop:
@@ -187,9 +203,12 @@ def run(folder, budget, motion_probe=None):
                     remaining-=used
                     earned+=cents
                     work,total,length=work+used,total+cents,length+used
-                    point=Point(state,total,length,pose=guide.pose if guide else None)
+                    stage+=int(cents>=100)
+                    point=Point(state,total,length,pose=guide.pose if guide else None,stage=stage)
                     if cents:
                         archive.offer(point)
+                    if landmarks and (length//64!=(length-used)//64 or cents>=100):
+                        landmarks.consider(point,pic)
                     best=max(best,total)
                     if (total==best and total>=last_saved+50) or terminal:
                         relative=f"discoveries/work-{work:010d}"
@@ -211,6 +230,10 @@ def run(folder, budget, motion_probe=None):
             if guide:
                 status.update(motion_decisions=dict(guide.decisions),confirmed_motion=dict(guide.moved),
                               estimated_places=len(guide.visits))
+            if landmarks:
+                status.update(landmark_stage=landmarks.stage,landmark_slots=len(landmarks.points),
+                              landmark_appearances=len(landmarks.seen),landmark_starts=landmarks.chosen,
+                              landmark_start_length_bins=dict(landmarks.starts))
             write_json(folder/"status.json",status)
     finally:
         env.close()
@@ -225,7 +248,11 @@ if __name__=="__main__":
     budgets.add_argument("--steps",type=int,help="Total search decisions including inherited work")
     budgets.add_argument("--additional-steps",type=int,help="Search decisions after the inherited work")
     parser.add_argument("--motion-probe",type=Path)
+    parser.add_argument("--stage-reservoir",type=int,default=0,
+                        help="Keep this many visual landmarks at the highest number of large scalar rewards")
     args=parser.parse_args()
+    if not 0<=args.stage_reservoir<=256:
+        parser.error("The number of visual landmarks must be between 0 and 256")
     folder=args.folder.resolve()
     if args.from_search:
         initialize(args.from_search.resolve(),folder,args.seed)
@@ -234,4 +261,4 @@ if __name__=="__main__":
         if args.additional_steps<=0:
             parser.error("Additional search decisions must be positive")
         budget=json.loads((folder/"branch-origin.json").read_text())["inherited_training_buttons"]+args.additional_steps
-    run(folder,budget,args.motion_probe)
+    run(folder,budget,args.motion_probe,args.stage_reservoir)

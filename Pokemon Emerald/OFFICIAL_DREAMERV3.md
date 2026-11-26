@@ -119,3 +119,14 @@ python option_explorer.py MOTION_RUN --from-search OWN_TRAINING_SEARCH --additio
 ```
 
 The motion fit estimates displacement from RGB frame pairs in the first three quarters of the training game. It reports accuracy and coverage on the final quarter. The motion explorer tests predicted displacements against new frames and favors less visited locations in its estimated coordinates. The probe must match the source discovery's action-tape hash. Use fresh games and equal budgets to compare downstream gameplay.
+
+Add `--stage-reservoir 64` in a new motion run to test a different way to pick training saves. Half the starts then come from a uniform sample of visual appearances since the greatest number of rewards of at least one. The other starts use the existing return-ranked archive. The visual signatures use image color and texture. This comparison asks whether the constant reward for new cells makes the ordinary archive too concentrated on the end of its own history.
+
+### Can Dreamer extend a route that memory can repeat?
+
+Run two fresh boots with the same frozen visual memory. When both games reach the end of a stored sequence or make no progress through the known screens for 512 decisions, the trained Dreamer controls the first game. Uniform random buttons control the second. Dreamer receives its actual previous input even while the memory chooses the buttons. The run checks that the two games have identical images and rewards until the switch. Read `handoff.json` for the first decision made independently in each game.
+
+```bash
+python extend_earned_route.py --model MEMORY --checkpoint ADAPTATION/frozen-policy \
+  --parent PARENT_EVALUATION --upstream /opt/emerald-rl/source --output EXTENSION --limit 65536
+```
